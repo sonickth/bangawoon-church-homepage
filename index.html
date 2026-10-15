@@ -16,20 +16,19 @@
     <a class="skip-link" href="#main">본문 바로가기</a>
     <header class="site-header" id="top">
       <div class="header-inner">
-        <a class="brand" href="#top" aria-label="반가운교회 홈">
-          <span class="brand-symbol" aria-hidden="true"><span></span><i></i></span>
-          <span class="brand-name">반가운교회<small>BANGAWOON CHURCH</small></span>
-        </a>
+        <a class="brand" href="#top" aria-label="반가운교회 홈"><img src="logo.png" alt="반가운교회" /></a>
         <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-nav" aria-label="메뉴 열기"><span></span><span></span></button>
         <nav class="primary-nav" id="primary-nav" aria-label="주 메뉴">
-          <a href="#welcome">교회 소개</a>
-          <a href="#worship">예배 안내</a>
-          <a href="#philosophy">목회 철학</a>
-          <a href="#visit">처음 오시는 분</a>
-          <a class="nav-contact" href="#location">오시는 길 <span aria-hidden="true">↗</span></a>
+          <div class="nav-group"><a class="nav-title" href="#visit">환영합니다 <span aria-hidden="true">⌄</span></a><div class="nav-submenu"><a href="#visit">처음 오시는 분</a><a href="#welcome-path">교회 방문 안내</a><a href="#welcome-path">새가족 안내 [확인 필요]</a><a href="#welcome-faq">자주 묻는 질문</a></div></div>
+          <div class="nav-group"><a class="nav-title" href="#welcome">소개합니다 <span aria-hidden="true">⌄</span></a><div class="nav-submenu"><a href="#welcome">교회 소개</a><a href="#pastor">담임목사 인사</a><a href="#philosophy">목회 철학</a><a href="#location">오시는 길</a></div></div>
+          <div class="nav-group"><a class="nav-title" href="#worship">예배와 말씀 <span aria-hidden="true">⌄</span></a><div class="nav-submenu"><a href="#worship">예배 시간</a><a href="#sermons">설교와 말씀</a><a href="#weekly">주보·자료</a><a href="#notice">교회 소식</a></div></div>
+          <div class="nav-group"><a class="nav-title" href="#community">공동체와 양육 <span aria-hidden="true">⌄</span></a><div class="nav-submenu"><a href="#community">공동체 소개</a><a href="#nextgen">다음 세대</a><a href="#discipleship">제자훈련</a></div></div>
+          <div class="nav-group"><a class="nav-title" href="#ministries">선교와 사역 <span aria-hidden="true">⌄</span></a><div class="nav-submenu"><a href="#ministries">이웃 섬김 [확인 필요]</a><a href="#ministries">사역 참여 [확인 필요]</a></div></div>
+          <button class="search-toggle" type="button" aria-expanded="false" aria-controls="site-search" aria-label="사이트 검색 열기">⌕</button>
         </nav>
       </div>
     </header>
+    <div class="site-search" id="site-search" hidden><form class="site-search-form" role="search"><label for="site-search-input">반가운교회 홈페이지 검색</label><div><input id="site-search-input" type="search" placeholder="예배, 목회 철학, 오시는 길 검색" autocomplete="off" /><button type="submit">검색 <span aria-hidden="true">→</span></button></div></form><div class="search-results" id="search-results" aria-live="polite"></div></div>
 
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
@@ -70,7 +69,7 @@
           <div><p class="eyebrow">A PLACE TO BELONG</p><h2>믿음 안에서<br />함께 자라가는 교회</h2></div>
           <div class="welcome-text"><p>반가운교회는 하나님을 예배하고, 이웃과 삶을 나누며, 다음 세대를 믿음으로 세워가는 공동체입니다. 처음 오시는 분도 편안히 예배하실 수 있도록 따뜻한 마음으로 맞이하겠습니다.</p><a href="#philosophy" class="inline-link">우리의 목회 철학 <span>→</span></a></div>
         </div>
-        <div class="welcome-values" aria-label="반가운교회의 핵심 가치"><div><span class="value-number">01</span><strong>영성</strong><span>하나님을 깊이 만나는 예배</span></div><div><span class="value-number">02</span><strong>공동체</strong><span>서로를 환대하고 세우는 삶</span></div><div><span class="value-number">03</span><strong>다음 세대</strong><span>믿음의 내일을 함께 준비</span></div></div>
+        <div class="welcome-values" aria-label="반가운교회의 목회 철학"><div><span class="value-number">01</span><strong>영성목회</strong><span>예배와 말씀, 기도로 하나님과 동행</span></div><div><span class="value-number">02</span><strong>공동체</strong><span>서로를 환대하고 세우는 삶</span></div><div><span class="value-number">03</span><strong>다음 세대</strong><span>믿음의 내일을 함께 준비</span></div></div>
       </section>
 
       <section class="worship section-pad" id="worship">
@@ -88,26 +87,47 @@
         <div class="philosophy-heading"><h2>우리가 함께<br />걸어가는 방향</h2><p>반가운교회는 세 가지 마음을 품고<br />한 걸음씩 공동체를 세워갑니다.</p></div>
         <div class="philosophy-list">
           <article><span class="philosophy-no">01</span><div class="philosophy-title"><h3>영성목회</h3><span>SPIRITUALITY</span></div><p>예배와 말씀, 기도로 하나님과 동행하는 삶을 세워갑니다.</p><span class="philosophy-symbol">✳</span></article>
-          <article><span class="philosophy-no">02</span><div class="philosophy-title"><h3>다음세대</h3><span>NEXT GENERATION</span></div><p>아이들과 청년들이 믿음 안에서 건강하게 자라도록 함께합니다.</p><span class="philosophy-symbol">↗</span></article>
-          <article><span class="philosophy-no">03</span><div class="philosophy-title"><h3>제자훈련</h3><span>DISCIPLESHIP</span></div><p>예수님의 마음을 배우고 일상의 자리에서 살아내도록 훈련합니다.</p><span class="philosophy-symbol">＋</span></article>
+          <article><span class="philosophy-no">02</span><div class="philosophy-title"><h3>공동체</h3><span>COMMUNITY</span></div><p>서로를 환대하고 믿음 안에서 함께 자라가는 공동체를 세웁니다.</p><span class="philosophy-symbol">↗</span></article>
+          <article><span class="philosophy-no">03</span><div class="philosophy-title"><h3>다음 세대</h3><span>NEXT GENERATION</span></div><p>아이들과 청년들이 믿음 안에서 건강하게 자라도록 함께합니다.</p><span class="philosophy-symbol">＋</span></article>
         </div>
       </section>
 
-      <section class="pastor section-pad">
+      <section class="ministries section-pad" id="community">
+        <div class="section-label"><span>04</span> GROW TOGETHER</div>
+        <div class="section-heading"><div><h2>함께 배우고 자랍니다</h2></div><p>다음 세대와 모든 성도가<br />믿음의 길을 함께 걷습니다.</p></div>
+        <div class="ministry-grid" id="nextgen">
+          <article class="ministry-card nextgen-card"><span class="ministry-kicker">NEXT GENERATION</span><span class="ministry-icon" aria-hidden="true">↗</span><h3>다음 세대</h3><p>어린이와 청년이 하나님 안에서 자신의 믿음을 발견하고 자라가도록 함께합니다.</p><span class="ministry-status">교육·모임 안내 <b>[확인 필요]</b></span></article>
+          <article class="ministry-card disciple-card" id="discipleship"><span class="ministry-kicker">DISCIPLESHIP</span><span class="ministry-icon" aria-hidden="true">✳</span><h3>제자훈련</h3><p>말씀을 배우고 삶으로 살아내며, 예수님의 제자로 함께 자라갑니다.</p><span class="ministry-status">훈련 일정·참여 방법 <b>[확인 필요]</b></span></article>
+        </div>
+      </section>
+
+      <section class="service-section section-pad" id="ministries"><div class="section-label"><span>05</span> SERVE TOGETHER</div><div class="section-heading"><div><h2>이웃과 함께하는 사역</h2></div><p>교회가 함께하는 섬김과 사역 정보를<br />확인 후 안내하겠습니다.</p></div><div class="service-cards"><a href="#ministries"><span>01 · SERVE</span><strong>이웃 섬김</strong><small>[확인 필요]</small><b aria-hidden="true">↗</b></a><a href="#ministries"><span>02 · JOIN</span><strong>사역 참여 안내</strong><small>[확인 필요]</small><b aria-hidden="true">↗</b></a></div></section>
+
+      <section class="pastor section-pad" id="pastor">
         <div class="pastor-mark" aria-hidden="true">“</div><div class="pastor-copy"><p class="eyebrow">PASTOR</p><h2>안경혁 목사님</h2><p>반가운교회의 목회자입니다.<br />함께 예배하고 믿음으로 자라가는 여정에 여러분을 초대합니다.</p></div><div class="pastor-side"><span>반가운교회</span><span class="pastor-cross">✳</span><span>함께 자라는 공동체</span></div>
       </section>
 
       <section class="visit section-pad" id="visit">
         <div class="visit-copy"><div class="section-label"><span>04</span> YOUR FIRST VISIT</div><p class="eyebrow">YOU ARE WELCOME HERE</p><h2>처음 오셨나요?<br /><span>반갑게 맞이하겠습니다.</span></h2><p class="visit-description">예배 시간에 맞춰 편하게 방문해 주세요.<br />궁금한 점은 오시는 길 안내에서 확인하실 수 있습니다.</p><a class="button button-light" href="#location">방문 안내 보기 <span aria-hidden="true">→</span></a></div>
         <div class="visit-detail"><div class="visit-detail-icon" aria-hidden="true">⌂</div><span class="eyebrow">SUNDAY WORSHIP</span><strong>매주 일요일 오전 11시</strong><span>서울 성북구에서 만나요</span><a href="#location">교회 위치 확인하기 ↗</a></div>
+        <div class="welcome-path" id="welcome-path"><article><span>01</span><strong>교회 위치 확인</strong><a href="#location">주소와 지도 보기 →</a></article><article><span>02</span><strong>예배에 참석</strong><a href="#worship">예배 시간 확인 →</a></article><article><span>03</span><strong>새가족 안내</strong><a href="#welcome-faq">안내 내용 [확인 필요] →</a></article></div>
       </section>
+
+      <section class="welcome-faq section-pad" id="welcome-faq"><div class="section-label"><span>06</span> FIRST VISIT GUIDE</div><div class="section-heading"><div><h2>처음 방문하실 때</h2></div><p>방문 전 자주 궁금해하시는 내용을<br />간단히 확인해 보세요.</p></div><div class="faq-list"><details><summary>예배에 처음 참석하려면 어떻게 하면 되나요?<span>＋</span></summary><p>주일예배 시간에 맞춰 편하게 방문해 주세요. 예배 시간은 매주 일요일 오전 11시입니다.</p></details><details><summary>교회는 어디에 있나요?<span>＋</span></summary><p>서울시 성북구 성북로4길 52, 411동(근린상가) 3층에 있습니다. <a href="#location">오시는 길 보기 →</a></p></details><details><summary>새가족 등록과 안내는 어떻게 받을 수 있나요?<span>＋</span></summary><p>새가족 안내 절차와 담당 연락처는 확인 후 안내할 예정입니다. [확인 필요]</p></details></div></section>
 
       <section class="location section-pad" id="location">
         <div class="section-heading"><div><div class="section-label"><span>05</span> FIND US</div><h2>오시는 길</h2></div><p>반가운교회는 서울 성북구에 있습니다.<br />아래 주소를 눌러 길 찾기를 시작하세요.</p></div>
         <div class="location-card"><div class="location-visual" aria-hidden="true"><div class="map-grid"></div><div class="map-road road-one"></div><div class="map-road road-two"></div><div class="map-road road-three"></div><div class="map-pin"><span>✳</span></div><span class="map-label label-a">성북로</span><span class="map-label label-b">성북천</span><span class="map-label label-c">반가운교회</span></div><div class="location-info"><span class="eyebrow">BANGAWOON CHURCH</span><h3>서울시 성북구</h3><p>성북로4길 52, 411동<br />(근린상가) 3층 반가운교회</p><div class="location-buttons"><a class="button button-primary" href="https://map.naver.com/p/search/서울시%20성북구%20성북로4길%2052%20411동" target="_blank" rel="noopener noreferrer">네이버 지도에서 보기 <span aria-hidden="true">↗</span></a><button class="copy-address" type="button" data-copy="서울시 성북구 성북로4길 52, 411동(근린상가) 3층 반가운교회">주소 복사</button></div><p class="copy-status" aria-live="polite"></p></div></div>
       </section>
+
+      <section class="boards section-pad" id="notice">
+        <div class="section-heading"><div><div class="section-label"><span>07</span> CHURCH BOARD</div><h2>교회 소식과 말씀</h2></div><p>반가운교회의 소식과 말씀을<br />한곳에서 확인하실 수 있습니다.</p></div>
+        <div class="board-tabs" role="tablist" aria-label="게시판 선택"><button class="board-tab is-active" type="button" role="tab" aria-selected="true" data-board="notice">공지사항</button><button class="board-tab" type="button" role="tab" aria-selected="false" data-board="sermons" id="sermons">설교와 말씀</button><button class="board-tab" type="button" role="tab" aria-selected="false" data-board="gallery" id="gallery">교회 앨범</button><button class="board-tab" type="button" role="tab" aria-selected="false" data-board="weekly" id="weekly">주보·자료</button></div>
+        <div class="board-panel" role="tabpanel" aria-live="polite"><div class="board-panel-heading"><div><span class="eyebrow">NOTICE</span><h3 id="board-heading">공지사항</h3></div><span class="board-count" id="board-count">0개의 게시물</span></div><div class="board-empty"><span class="empty-icon" aria-hidden="true">✳</span><strong id="board-empty-title">등록된 공지사항이 없습니다.</strong><p id="board-empty-description">새로운 소식이 등록되면 이곳에서 확인하실 수 있습니다.</p></div></div>
+        <p class="board-admin-note">게시물 기능은 추후 연결 예정입니다.</p>
+      </section>
     </main>
 
-    <footer class="site-footer"><div class="footer-main"><a class="brand brand-footer" href="#top" aria-label="반가운교회 처음으로"><span class="brand-symbol" aria-hidden="true"><span></span><i></i></span><span class="brand-name">반가운교회<small>BANGAWOON CHURCH</small></span></a><p>하나님을 사랑하고, 서로를 세우며<br />다음 세대와 함께 자라가는 공동체</p><a class="footer-top" href="#top">BACK TO TOP ↑</a></div><div class="footer-bottom"><span>서울시 성북구 성북로4길 52, 411동(근린상가) 3층 반가운교회</span><span>© 반가운교회. All rights reserved.</span></div></footer>
+    <footer class="site-footer"><div class="footer-main"><a class="brand brand-footer" href="#top" aria-label="반가운교회 처음으로"><img src="logo.png" alt="반가운교회" /></a><p>하나님을 사랑하고, 서로를 세우며<br />다음 세대와 함께 자라가는 공동체</p><a class="footer-top" href="#top">BACK TO TOP ↑</a></div><div class="footer-bottom"><span>서울시 성북구 성북로4길 52, 411동(근린상가) 3층 반가운교회</span><span>© 반가운교회. All rights reserved.</span></div></footer>
   </body>
 </html>
