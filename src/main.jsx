@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArrowDown, ArrowRight, ArrowUpRight, Menu, X, MapPin, Clock3, Instagram, Youtube, Heart, Sparkles, UsersRound, BookOpen, Cross, ChevronRight } from 'lucide-react';
+import churchLogo from './assets/bangawoon-ci.webp';
 import './style.css';
 
 const address = '서울 성북구 성북로4길 52, 한신한진아파트 411동 근린상가 3층 3302호';
@@ -25,7 +26,7 @@ function App() {
   return <>
     <div className="topline"><span>대한예수교장로회 통합</span><span className="topline-right">서울 성북구 성북동 · 반가운교회</span></div>
     <header className="header">
-      <a className="brand" href="#home" aria-label="반가운교회 홈"><span className="brand-symbol"><Cross size={21}/></span><span><b>반가운교회</b><small>BANGAWOON CHURCH</small></span></a>
+      <a className="brand" href="#home" aria-label="반가운교회 홈"><img className="brand-img" src={churchLogo} alt="반가운교회 Bangawoon Church"/></a>
       <nav className="desktop-nav">{nav.map(item=><button key={item.title} onMouseEnter={()=>setActive(item.title)} onClick={()=>setActive(active===item.title?'':item.title)}>{item.title}<span className="nav-dot"/></button>)}</nav>
       <button className="visit-btn" onClick={()=>jump('visit')}>처음 오셨나요? <ArrowUpRight size={15}/></button>
       <button className="mobile-menu" onClick={()=>setMenuOpen(!menuOpen)} aria-label="메뉴 열기">{menuOpen?<X/>:<Menu/>}</button>
@@ -52,7 +53,7 @@ function App() {
 
       <section className="connect"><div><span className="eyebrow">STAY CONNECTED</span><h2>반가운 소식을 만나보세요</h2><p>예배와 공동체의 이야기를 나눕니다.</p></div><div className="social-links"><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer"><Instagram size={19}/><span>Instagram</span><ArrowUpRight size={15}/></a><a href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={20}/><span>YouTube</span><ArrowUpRight size={15}/></a></div></section>
     </main>
-    <footer><div className="footer-main"><a className="brand footer-brand" href="#home"><span className="brand-symbol"><Cross size={21}/></span><span><b>반가운교회</b><small>BANGAWOON CHURCH</small></span></a><p>하나님과의 사귐 안에서<br/>함께 자라가는 공동체</p><div className="footer-details"><span>{address}</span><span>담임목사 안경혁 · 대한예수교장로회 통합</span></div><a className="footer-map" href="https://naver.me/xZKH48EF" target="_blank" rel="noreferrer">오시는 길 <ArrowUpRight size={14}/></a></div><div className="footer-bottom"><span>© 2026 반가운교회. All rights reserved.</span><span>성북동에 반가운 교회, 반가운 사람들</span></div></footer>
+    <footer><div className="footer-main"><a className="brand footer-brand" href="#home"><img className="brand-img" src={churchLogo} alt="반가운교회 Bangawoon Church"/></a><p>하나님과의 사귐 안에서<br/>함께 자라가는 공동체</p><div className="footer-details"><span>{address}</span><span>담임목사 안경혁 · 대한예수교장로회 통합</span></div><a className="footer-map" href="https://naver.me/xZKH48EF" target="_blank" rel="noreferrer">오시는 길 <ArrowUpRight size={14}/></a></div><div className="footer-bottom"><span>© 2026 반가운교회. All rights reserved.</span><span>성북동에 반가운 교회, 반가운 사람들</span></div></footer>
   </>;
 }
 
