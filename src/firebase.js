@@ -1,7 +1,9 @@
 // Firebase web configuration. Public client keys are not authorization; protect writes
 // with Firebase Authentication and Firestore Security Rules before enabling publishing.
 import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBbfsUnKOu_hFatrnb-JHruVOYKRTJIAIs',
@@ -13,5 +15,7 @@ const firebaseConfig = {
 };
 
 export const firebaseApp = initializeApp(firebaseConfig);
+export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
+export const storage = getStorage(firebaseApp);
 
