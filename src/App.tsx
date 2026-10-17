@@ -4,7 +4,7 @@ import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndP
 import type { User } from 'firebase/auth'
 import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
-import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Instagram, MapPin, Menu as MenuIcon, X, Youtube, LogIn, LogOut, Trash2, ImagePlus } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Instagram, MapPin, Menu as MenuIcon, Search, X, Youtube, LogIn, LogOut, Trash2, ImagePlus } from 'lucide-react'
 import { ADMIN_EMAIL, auth, db, storage } from './firebase'
 
 type Page = { id: string; title: string; section: string; description: string }
@@ -60,6 +60,7 @@ const images = {
 function App() {
   const [pageId, setPageId] = useState(() => location.hash.slice(1) || 'home')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [user, setUser] = useState<User | null>(auth.currentUser)
   const [authReady, setAuthReady] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
@@ -98,7 +99,7 @@ function App() {
   const openAuth = (mode: 'login' | 'signup' = 'login') => { setAuthMode(mode); setAuthMessage(''); setLoginOpen(true) }
 
   return <>
-    <div className="topline"><img src="/pck-ci.png" alt="대한예수교장로회"/><span>하나님과 사람을 반갑게 맞이하는 교회</span><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer">INSTAGRAM <ArrowUpRight size={12}/></a></div>
+    <div className="topline"><img src="/pck-ci.png" alt="대한예수교장로회"/><span>하나님과 사람을 반갑게 맞이하는 교회</span><button className="top-search-button" onClick={() => setSearchOpen(true)} aria-label="사이트 검색"><Search size={14}/> 검색</button></div>
     <header className="header">
       <button className="brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png" alt="반가운교회" /></button>
       <nav className="desktop-nav">{groups.map((group) => <div className="nav-group" key={group.title}><button onClick={() => navigate(group.items[0].id)}>{group.title}<ChevronDown size={13}/></button><div className="dropdown">{group.items.map((item) => <button key={item.id} onClick={() => navigate(item.id)}>{item.title}</button>)}</div></div>)}</nav>
@@ -110,6 +111,7 @@ function App() {
     {page ? <Interior page={page} navigate={navigate} user={user} isAdmin={isAdmin} authReady={authReady} onAuthOpen={openAuth}/> : <Home navigate={navigate}/>}
     <Footer navigate={navigate}/>
     {loginOpen && <LoginDialog mode={authMode} onModeChange={setAuthMode} onClose={() => setLoginOpen(false)} onAuthenticate={authenticate} message={authMessage}/>}
+    {searchOpen && <SearchDialog onClose={() => setSearchOpen(false)} onNavigate={navigate}/>}
     {authMessage && !loginOpen && <div className="auth-toast" role="status">{authMessage}<button onClick={() => setAuthMessage('')} aria-label="알림 닫기"><X size={15}/></button></div>}
   </>
 }
@@ -306,6 +308,38 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
     {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{canManage ? '위 입력란에서 게시물과 사진을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p>{isAdmin && category === 'bulletin' && <button className="sample-bulletin-button" type="button" disabled={saving} onClick={() => void createSampleBulletin()}>{saving ? '참고 주보 등록 및 목록 확인 중…' : '참고사진의 주보 예시 바로 등록'}</button>}</div> : <div className="post-list">{posts.map((post) => { const postFiles = post.attachments?.length ? post.attachments : post.fileUrl ? [{ url: post.fileUrl, path: post.filePath ?? '', name: post.fileName ?? '첨부 파일', type: post.fileType ?? '' }] : []; const thumbnail = postFiles.find((file) => file.type.startsWith('image/'))?.url ?? post.imageUrl; return <article className="post-card" key={post.id}>{thumbnail && <button className="post-image" onClick={() => setSelected(post)}><img src={thumbnail} alt="첨부 미리보기"/>{postFiles.filter((file) => file.type.startsWith('image/')).length > 1 && <span className="attachment-count">사진 {postFiles.filter((file) => file.type.startsWith('image/')).length}장</span>}</button>}<button className="post-main" onClick={() => setSelected(post)}><time>{post.date}</time><h3>{post.title}</h3><p>{post.body || postFiles.map((file) => file.name).join(', ') || '자세한 내용을 확인하세요.'}</p></button>{canManage && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>})}</div>}
     {selected && <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null) }}><article className="post-detail" role="dialog" aria-modal="true" aria-label={selected.title}><button className="post-close" onClick={() => setSelected(null)} aria-label="닫기"><X/></button><time>{selected.date}</time><h2>{selected.title}</h2><p>{selected.body}</p><div className="post-attachments">{(selected.attachments?.length ? selected.attachments : selected.fileUrl ? [{ url: selected.fileUrl, path: selected.filePath ?? '', name: selected.fileName ?? '첨부 파일', type: selected.fileType ?? '' }] : []).map((file) => file.type.startsWith('image/') ? <a key={file.path || file.url} href={file.url} target="_blank" rel="noreferrer" className="post-attachment-image"><img src={file.url} alt={file.name}/><span>{file.name} <ArrowUpRight size={14}/></span></a> : <a className="post-attachment-file" key={file.path || file.url} href={file.url} target="_blank" rel="noreferrer"><BookOpen size={17}/>{file.name}<ArrowUpRight size={14}/></a>)}</div>{selected.linkUrl && <a className="text-link" href={selected.linkUrl} target="_blank" rel="noreferrer">관련 자료 열기 <ArrowUpRight size={15}/></a>}{canManage && <button className="post-delete detail-delete" onClick={() => void removePost(selected)}><Trash2 size={15}/> 게시물 삭제</button>}</article></div>}
   </div>
+}
+
+function SearchDialog({ onClose, onNavigate }: { onClose: () => void; onNavigate: (id: string) => void }) {
+  const [term, setTerm] = useState('')
+  const [posts, setPosts] = useState<Array<{ id: string; title: string; body: string; date: string; category: string }>>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  useEffect(() => {
+    let active = true
+    void getDocs(collection(db, 'posts')).then((snapshot) => {
+      if (!active) return
+      setPosts(snapshot.docs.map((item) => {
+        const data = item.data()
+        return { id: item.id, title: String(data.title ?? ''), body: String(data.body ?? ''), date: String(data.date ?? ''), category: String(data.category ?? '') }
+      }))
+      setLoading(false)
+    }).catch(() => {
+      if (!active) return
+      setLoadError(true)
+      setLoading(false)
+    })
+    return () => { active = false }
+  }, [])
+
+  const normalizedTerm = term.trim().toLocaleLowerCase('ko')
+  const pageResults = normalizedTerm ? allPages.filter((item) => `${item.title} ${item.section} ${item.description}`.toLocaleLowerCase('ko').includes(normalizedTerm)) : []
+  const pageIdByCategory: Record<string, string> = { sermons: 'sermons', bulletin: 'bulletin', notices: 'notices', calendar: 'calendar', gallery: 'gallery', community: 'community-story', nextgen: 'nextgen-story', prayer: 'prayer-share' }
+  const postResults = normalizedTerm ? posts.filter((item) => `${item.title} ${item.body} ${item.category} ${item.date}`.toLocaleLowerCase('ko').includes(normalizedTerm)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10) : []
+  const hasResults = pageResults.length + postResults.length > 0
+  const goToPage = (id: string) => { onClose(); onNavigate(id) }
+
+  return <div className="post-overlay search-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}><section className="search-dialog" role="dialog" aria-modal="true" aria-label="사이트 검색"><button className="post-close" onClick={onClose} aria-label="검색 닫기"><X/></button><span className="eyebrow"><i/> BANGAWOON SEARCH</span><h2>무엇을 찾으세요?</h2><label className="search-input-wrap"><Search size={19}/><input type="search" autoFocus value={term} onChange={(e) => setTerm(e.target.value)} placeholder="메뉴와 게시물 검색" aria-label="검색어"/></label><div className="search-results" aria-live="polite">{!normalizedTerm ? <p className="search-hint">메뉴 이름이나 게시물 제목, 내용을 검색해 보세요.</p> : <>{pageResults.map((item) => <button className="search-result" key={`page-${item.id}`} onClick={() => goToPage(item.id)}><span>메뉴 · {item.section}</span><b>{item.title}</b><ArrowRight size={16}/></button>)}{postResults.map((item) => { const destination = pageIdByCategory[item.category]; const categoryName = allPages.find((page) => page.id === destination)?.title ?? '게시판'; return <button className="search-result" key={`post-${item.id}`} onClick={() => destination && goToPage(destination)} disabled={!destination}><span>게시물 · {categoryName} · {item.date}</span><b>{item.title}</b><small>{item.body || '게시물 내용을 확인하세요.'}</small><ArrowRight size={16}/></button> })}{!hasResults && !loading && <p className="search-hint">검색 결과가 없습니다.</p>}</>}{normalizedTerm && loading && <p className="search-hint">게시물을 함께 검색하고 있습니다…</p>}{normalizedTerm && loadError && <p className="search-load-error">게시물을 불러오지 못했습니다. 메뉴 검색 결과는 계속 표시됩니다.</p>}</div></section></div>
 }
 
 function LoginDialog({ mode, onModeChange, onClose, onAuthenticate, message }: { mode: 'login' | 'signup'; onModeChange: (mode: 'login' | 'signup') => void; onClose: () => void; onAuthenticate: (mode: 'login' | 'signup', email: string, password: string) => void; message: string }) {
