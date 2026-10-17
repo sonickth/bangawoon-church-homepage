@@ -1,37 +1,46 @@
-# 반가운교회 홈페이지
+# 반가운교회 홈페이지 초안
 
-React, Vite와 Firebase로 만든 반가운교회 소개·사진·주보 홈페이지입니다.
+반가운교회 CI를 바탕으로 구성한 React + TypeScript + Vite 홈페이지 초안입니다.
 
-## 로컬에서 실행
+## 시작하기
 
 ```sh
 npm install
 npm run dev
 ```
 
-## Firebase 설정과 첫 자료 등록
+## 현재 초안 범위
 
-사진 파일 자체는 Firebase Storage에 저장하고, 제목·게시판 종류·날짜·설명·이미지 URL은 Firestore `posts` 컬렉션에 저장합니다. 초기 사진 3장과 2026년 10월 11일 주보는 사이트에 포함되어 있어 Firebase 연결 전에도 화면에서 볼 수 있습니다. 관리자가 로그인한 뒤 계정 창의 **초기 사진 3장과 주보를 Firebase에 등록**을 누르면 네 파일을 Storage와 Firestore로 복사합니다.
+- 반응형 홈페이지와 메뉴별 화면
+- CI의 남색, 영성목회 블루, 공동체 베이지, 다음세대 세이지 색상 적용
+- 주보 메뉴와 주차별 자료 목록을 놓을 화면 영역
+- 교회소개, 예배안내, 오시는 길, 새가족안내, 설교·공지 등 기본 화면 골격
+- 외부 인스타그램·유튜브·네이버 지도 연결
+- 참고사진을 사용한 주보·설교 나눔지·소식지·교회 발자취·공동체 나눔 화면
 
-1. Firebase Console의 Authentication에서 Email/Password 제공업체를 켭니다.
-2. Firestore Database를 만들고 Storage 버킷을 준비합니다. Cloud Storage for Firebase는 현재 Blaze 요금제 연결이 필요합니다. Blaze에서는 무료 사용량을 넘으면 사용량에 따라 비용이 청구될 수 있으니 [Firebase Storage 요금 및 사용량](https://firebase.google.com/pricing)을 확인하세요.
-3. 프로젝트 루트에서 규칙을 배포합니다.
+실제 게시물 저장, Firebase 연동, 관리자 로그인·권한 관리는 아직 연결하지 않았습니다. 공개 화면과 관리 기능을 나중에 나누기 쉽도록 화면별 콘텐츠 구조를 먼저 만들었습니다.
 
-   ```sh
-   npm install -g firebase-tools
-   firebase login
-   firebase deploy --only firestore:rules,storage
-   ```
+## 예정 콘텐츠 데이터 구분
 
-4. 홈페이지에서 관리자 이메일로 회원가입한 다음 로그인하고 UID를 복사합니다. Firebase Console의 Firestore에서 `admins` 컬렉션을 만들고 문서 ID를 복사한 UID로 지정합니다. 예를 들어 `{ "role": "admin" }` 필드를 넣을 수 있습니다. 관리자 문서는 홈페이지에서 만들 수 없으며 Firebase Console에서만 추가하도록 보안 규칙이 작성되어 있습니다.
-5. 홈페이지에서 관리자 권한을 다시 확인한 뒤 초기 자료 등록 버튼을 누릅니다. 그 후부터 사진·주보 게시판에 관리자가 새 파일을 추가할 수 있습니다.
+- 게시물: 설교, 공지사항, 공동체 이야기, 다음세대 이야기
+- 주보: 예배 날짜, 제목, 첨부 파일 URL, 작성·수정 시각
+- 일정: 제목, 날짜와 시간, 장소, 설명
+- 앨범: 앨범명, 촬영일, 사진 URL과 설명
+- 사이트 정보: 예배 시간, 주소, SNS URL, 소개 문구
 
-누구나 회원가입과 로그인을 할 수 있지만, 게시 권한은 `admins/{uid}` 문서가 있는 계정에만 부여됩니다. 화면의 관리자 확인과 더불어 `firestore.rules`, `storage.rules`가 서버에서 쓰기 권한을 제한합니다. 해당 규칙을 배포하기 전에는 게시 기능을 사용하지 마세요.
+실제 컬렉션 이름과 필드는 Firebase 프로젝트 연결 시 기존 운영 방식에 맞춰 확정하면 됩니다.
 
-## 관리자 권한 구조
+## CI 이미지
 
-- `admins/{uid}` 문서는 Firebase Console에서만 생성합니다. 공개 회원가입 사용자가 자신의 권한을 관리자로 올릴 수 없습니다.
-- `posts`의 공개된 게시물은 누구나 읽을 수 있고, 생성·수정·삭제는 관리자 UID만 할 수 있습니다.
-- `public/gallery`와 `public/bulletins`의 파일은 공개 열람, 관리자 업로드로 설정됩니다. 게시물 이미지는 JPG, PNG, WebP, 8MB 이하만 허용합니다.
-- Firebase 웹 설정의 API 키는 브라우저에 보이는 공개 설정값이며, 접근 통제는 Security Rules가 담당합니다.
+- `public/brand-lockup.png`: 홈페이지에서 쓰는 가로형 로고
+- `public/brand-original.png`: 제공받은 CI 원본
+- `public/images/`: 참고사진에서 복사하고 웹용으로 최적화한 화면 이미지
 
+## 실제 운영 전에 받을 자료
+
+- 담임목사 프로필 사진과 인사말 원고
+- 어린이·학생 사역 소개, 예배 시간, 활동 사진
+- 주차 및 건물 진입 안내, 엘리베이터 위치
+- 설교 영상 URL, 설교 제목·본문·설교자 정보
+- 공지, 일정, FAQ의 실제 운영 내용
+- 사진 속 교인과 어린이의 홈페이지 게시 동의 여부
