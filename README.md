@@ -18,7 +18,19 @@ npm run dev
 - 외부 인스타그램·유튜브·네이버 지도 연결
 - 참고사진을 사용한 주보·설교 나눔지·소식지·교회 발자취·공동체 나눔 화면
 
-실제 게시물 저장, Firebase 연동, 관리자 로그인·권한 관리는 아직 연결하지 않았습니다. 공개 화면과 관리 기능을 나중에 나누기 쉽도록 화면별 콘텐츠 구조를 먼저 만들었습니다.
+게시판 데이터는 Firebase Firestore의 `posts` 컬렉션에서 실시간으로 읽습니다. 주보, 설교, 공지사항, 일정, 사진앨범, 공동체 이야기, 다음세대 이야기, 기도 나눔 메뉴가 게시판으로 연결되어 있습니다. 방문자는 게시물을 읽고, 관리자 `sonickthgmal@gmail.com`은 Firebase Authentication 로그인 후 게시물을 등록·삭제할 수 있습니다. 게시물 수정은 현재 제공하지 않습니다.
+
+## Firebase 설정
+
+Firebase 웹 앱 설정은 `src/firebase.ts`에 적용되어 있습니다. Firebase Console에서 Authentication의 이메일/비밀번호 로그인 제공자를 켜고 관리자 계정을 등록해야 합니다. 이 프로젝트는 계정 생성이나 비밀번호 재설정을 수행하지 않습니다. Firestore 데이터베이스도 Firebase Console에서 생성되어 있어야 합니다.
+
+Firestore 보안 규칙과 게시판 복합 색인은 `firestore.rules`, `firestore.indexes.json`에 정의되어 있습니다. Firebase CLI가 설치되고 프로젝트에 로그인된 환경에서 다음 명령으로 배포합니다.
+
+```sh
+npx firebase-tools deploy --only firestore:rules,firestore:indexes --project bangawoon-church-homepage
+```
+
+규칙이 배포되기 전에는 Firestore 읽기/쓰기가 거절될 수 있습니다. 게시물 문서는 `posts` 컬렉션에 `category`, `title`, `body`, `date`, 선택 항목 `imageUrl`·`linkUrl`, `authorEmail`, `createdAt` 필드를 사용합니다. 현재 이미지는 URL로 저장하므로 업로드 파일은 별도 Firebase Storage 설정이 필요합니다.
 
 ## 예정 콘텐츠 데이터 구분
 
@@ -28,7 +40,7 @@ npm run dev
 - 앨범: 앨범명, 촬영일, 사진 URL과 설명
 - 사이트 정보: 예배 시간, 주소, SNS URL, 소개 문구
 
-실제 컬렉션 이름과 필드는 Firebase 프로젝트 연결 시 기존 운영 방식에 맞춰 확정하면 됩니다.
+카테고리 값: `sermons`, `bulletin`, `notices`, `calendar`, `gallery`, `community`, `nextgen`, `prayer`.
 
 ## CI 이미지
 
