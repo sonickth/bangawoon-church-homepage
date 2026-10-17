@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
-import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore'
-import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Instagram, MapPin, Menu as MenuIcon, Play, X, Youtube, LogIn, LogOut, Trash2 } from 'lucide-react'
-import { ADMIN_EMAIL, auth, db } from './firebase'
+import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore'
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Instagram, MapPin, Menu as MenuIcon, Play, X, Youtube, LogIn, LogOut, Trash2, ImagePlus } from 'lucide-react'
+import { ADMIN_EMAIL, auth, db, storage } from './firebase'
 
 type Page = { id: string; title: string; section: string; description: string }
 type MenuGroup = { title: string; items: Page[] }
@@ -47,6 +48,7 @@ const groups: MenuGroup[] = [
 ]
 const allPages = groups.flatMap((group) => group.items)
 const boardCategories: Record<string, string> = { sermons: 'sermons', bulletin: 'bulletin', notices: 'notices', calendar: 'calendar', gallery: 'gallery', 'community-story': 'community', 'nextgen-story': 'nextgen', 'prayer-share': 'prayer' }
+const memberBoardCategories = new Set(['gallery', 'prayer'])
 const images = {
   first: '/images/first-service.jpg', interior: '/images/church-interior.jpg', prayer: '/images/prayer-sharing.jpg',
   board: '/images/hallway-board.jpg', opening: '/images/sanctuary-opening.jpg', sheet1: '/images/sermon-sheet-01.jpg',
@@ -61,6 +63,7 @@ function App() {
   const [user, setUser] = useState<User | null>(auth.currentUser)
   const [authReady, setAuthReady] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [authMessage, setAuthMessage] = useState('')
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL
   const page = allPages.find((item) => item.id === pageId)
@@ -78,27 +81,21 @@ function App() {
   useEffect(() => onAuthStateChanged(auth, (nextUser) => {
     setUser(nextUser)
     setAuthReady(true)
-    if (nextUser && nextUser.email?.toLowerCase() !== ADMIN_EMAIL) {
-      void signOut(auth)
-      setAuthMessage('관리자 계정으로만 로그인할 수 있습니다.')
-    }
   }), [])
 
-  const login = async (email: string, password: string) => {
+  const authenticate = async (mode: 'login' | 'signup', email: string, password: string) => {
     setAuthMessage('')
     try {
-      const result = await signInWithEmailAndPassword(auth, email.trim(), password)
-      if (result.user.email?.toLowerCase() !== ADMIN_EMAIL) {
-        await signOut(auth)
-        setAuthMessage('관리자 이메일 계정으로 로그인해 주세요.')
-        return
-      }
+      if (mode === 'signup') await createUserWithEmailAndPassword(auth, email.trim(), password)
+      else await signInWithEmailAndPassword(auth, email.trim(), password)
       setLoginOpen(false)
-      setAuthMessage('관리자 로그인되었습니다.')
+      setAuthMessage(mode === 'signup' ? '회원가입과 로그인이 완료되었습니다.' : '로그인되었습니다.')
     } catch {
-      setAuthMessage('로그인에 실패했습니다. 이메일/비밀번호와 Firebase 이메일 로그인 설정을 확인해 주세요.')
+      setAuthMessage(mode === 'signup' ? '회원가입에 실패했습니다. 이메일 형식, 비밀번호(6자 이상), Firebase 이메일 로그인 설정을 확인해 주세요.' : '로그인에 실패했습니다. 이메일과 비밀번호를 확인해 주세요.')
     }
   }
+
+  const openAuth = (mode: 'login' | 'signup' = 'login') => { setAuthMode(mode); setAuthMessage(''); setLoginOpen(true) }
 
   return <>
     <div className="topline"><span>SEOUL · SUNGBOOK-GU</span><span>하나님과 사람을 반갑게 맞이하는 교회</span><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer">INSTAGRAM <ArrowUpRight size={12}/></a></div>
@@ -109,9 +106,9 @@ function App() {
       <button className="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)} aria-label="메뉴 열기">{mobileOpen ? <X/> : <MenuIcon/>}</button>
     </header>
     {mobileOpen && <div className="mobile-nav">{groups.map((group) => <div key={group.title}><p>{group.title}</p>{group.items.map((item) => <button key={item.id} onClick={() => navigate(item.id)}>{item.title}<ArrowRight size={14}/></button>)}</div>)}</div>}
-    {page ? <Interior page={page} navigate={navigate} isAdmin={isAdmin} authReady={authReady} onAdminLogin={() => setLoginOpen(true)}/> : <Home navigate={navigate}/>}
-    <Footer navigate={navigate} isAdmin={isAdmin} onAdminLogin={() => setLoginOpen(true)} onAdminLogout={() => { void signOut(auth); setAuthMessage('로그아웃되었습니다.') }}/>
-    {loginOpen && <LoginDialog onClose={() => setLoginOpen(false)} onLogin={login} message={authMessage}/>}
+    {page ? <Interior page={page} navigate={navigate} user={user} isAdmin={isAdmin} authReady={authReady} onAuthOpen={openAuth}/> : <Home navigate={navigate}/>}
+    <Footer navigate={navigate} user={user} isAdmin={isAdmin} onAuthOpen={openAuth} onLogout={() => { void signOut(auth); setAuthMessage('로그아웃되었습니다.') }}/>
+    {loginOpen && <LoginDialog mode={authMode} onModeChange={setAuthMode} onClose={() => setLoginOpen(false)} onAuthenticate={authenticate} message={authMessage}/>}
     {authMessage && !loginOpen && <div className="auth-toast" role="status">{authMessage}<button onClick={() => setAuthMessage('')} aria-label="알림 닫기"><X size={15}/></button></div>}
   </>
 }
@@ -147,16 +144,16 @@ function Service({ day, title, time }: { day: string; title: string; time: strin
   return <div className="service-row"><span>{day}</span><b>{title}</b><time><Clock3 size={14}/>{time}</time></div>
 }
 
-function Interior({ page, navigate, isAdmin, authReady, onAdminLogin }: { page: Page; navigate: (id: string) => void; isAdmin: boolean; authReady: boolean; onAdminLogin: () => void }) {
+function Interior({ page, navigate, user, isAdmin, authReady, onAuthOpen }: { page: Page; navigate: (id: string) => void; user: User | null; isAdmin: boolean; authReady: boolean; onAuthOpen: (mode?: 'login' | 'signup') => void }) {
   return <main className="interior"><section className="page-hero"><div className="section-wrap"><span className="eyebrow"><i/> {page.section.toUpperCase()}</span><h1>{page.title}</h1><p>{page.description}</p><div className="breadcrumbs"><button onClick={() => navigate('home')}>홈</button><span>/</span><span>{page.section}</span><span>/</span><b>{page.title}</b></div></div><div className="page-orb"/></section>
-    <section className="page-body section-wrap"><PageContent page={page} navigate={navigate} isAdmin={isAdmin} authReady={authReady} onAdminLogin={onAdminLogin}/></section>
+    <section className="page-body section-wrap"><PageContent page={page} navigate={navigate} user={user} isAdmin={isAdmin} authReady={authReady} onAuthOpen={onAuthOpen}/></section>
     <section className="page-next section-wrap"><span>다음으로 둘러보기</span><button onClick={() => navigate('welcome')}>처음 오셨나요? <ArrowRight size={16}/></button></section>
   </main>
 }
 
-function PageContent({ page, navigate, isAdmin, authReady, onAdminLogin }: { page: Page; navigate: (id: string) => void; isAdmin: boolean; authReady: boolean; onAdminLogin: () => void }) {
+function PageContent({ page, navigate, user, isAdmin, authReady, onAuthOpen }: { page: Page; navigate: (id: string) => void; user: User | null; isAdmin: boolean; authReady: boolean; onAuthOpen: (mode?: 'login' | 'signup') => void }) {
   const [openFaq, setOpenFaq] = useState<number | null>(0)
-  if (boardCategories[page.id]) return <BoardPage page={page} category={boardCategories[page.id]} isAdmin={isAdmin} authReady={authReady} onAdminLogin={onAdminLogin}/>
+  if (boardCategories[page.id]) return <BoardPage page={page} category={boardCategories[page.id]} user={user} isAdmin={isAdmin} authReady={authReady} onAuthOpen={onAuthOpen}/>
   if (page.id === 'bulletin') return <div className="archive-content"><ArchiveHeading eyebrow="WEEKLY BULLETIN" title="주일마다 함께 나누는 예배 안내" note="주보 이미지를 누르면 큰 화면으로 볼 수 있습니다."/><div className="document-grid">{[[images.bulletin1,'주보 1면'],[images.bulletin2,'주보 2면']].map(([src,label]) => <a className="document-card" href={src} target="_blank" rel="noreferrer" key={label}><img src={src} alt={`2026년 10월 18일 ${label}`}/><span>2026.10.18 · {label} <ArrowUpRight size={15}/></span></a>)}</div></div>
   if (page.id === 'sermons') return <div className="archive-content"><ArchiveHeading eyebrow="SUNDAY SERMON" title="말씀을 듣고, 삶으로 이어갑니다" note="설교 영상 주소가 준비되면 재생 버튼과 말씀 정보를 이곳에 연결할 수 있습니다."/><div className="sermon-feature"><div className="sermon-photo"><img src={images.sheet1} alt="2026년 10월 11일 설교 나눔지"/><span><Play size={19}/> 설교 영상 연결 예정</span></div><div><span className="eyebrow"><i/> 2026.10.11 · 설교 나눔</span><h2>주일 말씀을<br/>함께 묵상합니다</h2><p>예배에서 들은 말씀을 주중에도 다시 읽고, 나눔 질문과 함께 묵상할 수 있도록 설교 자료를 모아 둡니다.</p><a className="text-link" href={images.sheet1} target="_blank" rel="noreferrer">설교 나눔지 보기 <ArrowUpRight size={15}/></a></div></div><div className="sermon-thumbs"><a href={images.sheet2} target="_blank" rel="noreferrer"><img src={images.sheet2} alt="설교 나눔지 두 번째 면"/><span>말씀 나눔 자료 · 2면</span></a><figure><img src={images.sharing} alt="설교 후 나눔 모임"/><figcaption>예배 후 말씀 나눔 · 2026.09.26</figcaption></figure></div></div>
   if (page.id === 'history') return <Timeline/>
@@ -177,9 +174,9 @@ function ArchiveHeading({ eyebrow, title, note }: { eyebrow: string; title: stri
   return <div className="archive-heading"><span className="eyebrow"><i/> {eyebrow}</span><h2>{title}</h2><p>{note}</p></div>
 }
 
-type ChurchPost = { id: string; category: string; title: string; body: string; date: string; imageUrl?: string; linkUrl?: string; authorEmail?: string }
+type ChurchPost = { id: string; category: string; title: string; body: string; date: string; imageUrl?: string; fileUrl?: string; filePath?: string; fileName?: string; fileType?: string; linkUrl?: string; authorEmail?: string; authorUid?: string }
 
-function BoardPage({ page, category, isAdmin, authReady, onAdminLogin }: { page: Page; category: string; isAdmin: boolean; authReady: boolean; onAdminLogin: () => void }) {
+function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { page: Page; category: string; user: User | null; isAdmin: boolean; authReady: boolean; onAuthOpen: (mode?: 'login' | 'signup') => void }) {
   const [posts, setPosts] = useState<ChurchPost[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -187,13 +184,19 @@ function BoardPage({ page, category, isAdmin, authReady, onAdminLogin }: { page:
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [imageUrl, setImageUrl] = useState('')
+  const [attachment, setAttachment] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
   const [saving, setSaving] = useState(false)
+  const canManage = isAdmin || (!!user && memberBoardCategories.has(category))
+  const postsQuery = query(collection(db, 'posts'), where('category', '==', category), orderBy('date', 'desc'))
+
+  const refreshPosts = async () => {
+    const snapshot = await getDocs(postsQuery)
+    setPosts(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ChurchPost)))
+  }
 
   useEffect(() => {
     setLoading(true)
-    const postsQuery = query(collection(db, 'posts'), where('category', '==', category), orderBy('date', 'desc'))
     return onSnapshot(postsQuery, (snapshot) => {
       setPosts(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ChurchPost)))
       setLoading(false)
@@ -204,48 +207,82 @@ function BoardPage({ page, category, isAdmin, authReady, onAdminLogin }: { page:
     })
   }, [category])
 
-  const createPost = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!isAdmin || !auth.currentUser?.email) return
+  const savePost = async (postTitle: string, postDate: string, postBody: string, file: File | null, relatedLink: string) => {
+    if (!canManage || !user?.email) return
     setSaving(true)
     setError('')
+    let uploadedPath = ''
+    let postCreated = false
     try {
+      if (file && (file.size > 15 * 1024 * 1024 || !/^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(file.type))) {
+        setError('첨부 파일은 JPG, PNG, WEBP, GIF 또는 PDF 형식이며 15MB 이하여야 합니다.')
+        return
+      }
+      let uploadedUrl = ''
+      if (file) {
+        const safeName = file.name.replace(/[^\w.-]+/g, '-')
+        uploadedPath = `posts/${category}/${user.uid}/${crypto.randomUUID()}-${safeName}`
+        const uploaded = await uploadBytes(ref(storage, uploadedPath), file, { contentType: file.type })
+        uploadedUrl = await getDownloadURL(uploaded.ref)
+      }
       await addDoc(collection(db, 'posts'), {
-        category, title: title.trim(), body: body.trim(), date,
-        ...(imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
-        ...(linkUrl.trim() ? { linkUrl: linkUrl.trim() } : {}),
-        authorEmail: auth.currentUser.email, createdAt: serverTimestamp(),
+        category, title: postTitle.trim(), body: postBody.trim(), date: postDate,
+        ...(uploadedUrl ? { fileUrl: uploadedUrl, ...(file?.type.startsWith('image/') ? { imageUrl: uploadedUrl } : {}), filePath: uploadedPath, fileName: file?.name, fileType: file?.type } : {}),
+        ...(relatedLink.trim() ? { linkUrl: relatedLink.trim() } : {}),
+        authorEmail: user.email, authorUid: user.uid, createdAt: serverTimestamp(),
       })
-      setTitle(''); setBody(''); setImageUrl(''); setLinkUrl(''); setSelected(null)
+      postCreated = true
+      await refreshPosts()
+      setTitle(''); setBody(''); setAttachment(null); setLinkUrl(''); setSelected(null)
     } catch {
-      setError('게시물 등록에 실패했습니다. 관리자 로그인과 Firestore 보안 규칙을 확인해 주세요.')
+      if (uploadedPath && !postCreated) await deleteObject(ref(storage, uploadedPath)).catch(() => undefined)
+      setError(postCreated ? '게시물은 저장됐지만 목록 새로고침에 실패했습니다. 잠시 후 다시 확인해 주세요.' : '게시물 등록에 실패했습니다. 이메일 로그인 제공자, Firebase Storage 버킷과 배포된 보안 규칙을 확인해 주세요.')
     } finally { setSaving(false) }
   }
 
+  const createPost = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    await savePost(title, date, body, attachment, linkUrl)
+  }
+
+  const createSampleBulletin = async () => {
+    try {
+      const response = await fetch(images.bulletin1)
+      if (!response.ok) throw new Error('Could not load bulletin image')
+      const blob = await response.blob()
+      const file = new File([blob], '주보01_20261018.jpg', { type: blob.type || 'image/jpeg' })
+      await savePost('주일 주보 · 2026년 10월 18일', '2026-10-18', '참고사진 폴더의 주보 예시입니다. 주보 1면을 첨부했습니다.', file, '')
+    } catch {
+      setError('예시 주보 파일을 불러오지 못했습니다.')
+    }
+  }
+
   const removePost = async (post: ChurchPost) => {
-    if (!isAdmin || !window.confirm(`“${post.title}” 게시물을 삭제할까요?`)) return
+    if (!canManage || !window.confirm(`“${post.title}” 게시물을 삭제할까요?`)) return
     try {
       await deleteDoc(doc(db, 'posts', post.id))
+      if (post.filePath) await deleteObject(ref(storage, post.filePath)).catch(() => undefined)
+      await refreshPosts()
       if (selected?.id === post.id) setSelected(null)
-    } catch { setError('게시물을 삭제하지 못했습니다. Firestore 보안 규칙을 확인해 주세요.') }
+    } catch { setError('게시물을 삭제하지 못했습니다. 권한과 Firestore 보안 규칙을 확인해 주세요.') }
   }
 
   return <div className="archive-content board-page">
     <div className="board-topline"><ArchiveHeading eyebrow={category === 'bulletin' ? 'WEEKLY BULLETIN' : page.section.toUpperCase()} title={category === 'bulletin' ? '매주 주보를 모아봅니다' : `${page.title} 게시판`} note={category === 'bulletin' ? '예배 날짜별 주보와 안내를 확인할 수 있습니다.' : page.description}/>
-      {isAdmin ? <span className="admin-badge">관리자 로그인됨</span> : <button className="board-login" onClick={onAdminLogin}><LogIn size={15}/> 관리자 로그인</button>}
+      {user ? <span className="admin-badge">{isAdmin ? '관리자 로그인됨' : '회원 로그인됨'}</span> : <div className="board-auth-buttons"><button className="board-login" onClick={() => onAuthOpen('login')}><LogIn size={15}/> 로그인</button><button className="board-login" onClick={() => onAuthOpen('signup')}>회원가입</button></div>}
     </div>
     {!authReady && <p className="board-status">로그인 상태를 확인하고 있습니다.</p>}
-    {isAdmin && <form className="post-form" onSubmit={createPost}><h3>새 게시물 등록</h3><div className="post-form-grid"><label>제목<input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="게시물 제목"/></label><label>게시 날짜<input required type="date" value={date} onChange={(e) => setDate(e.target.value)}/></label><label className="wide-field">내용<textarea maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="게시물 내용을 입력해 주세요."/></label><label>이미지 주소(선택)<input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..."/></label><label>관련 링크(선택)<input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..."/></label></div><button className="pill-button" disabled={saving}>{saving ? '등록 중…' : '게시물 등록'} <ArrowRight size={15}/></button></form>}
+    {canManage && <form className="post-form" onSubmit={createPost}><h3>새 게시물 등록</h3><div className="post-form-grid"><label>제목<input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="게시물 제목"/></label><label>게시 날짜<input required type="date" value={date} onChange={(e) => setDate(e.target.value)}/></label><label className="wide-field">내용<textarea maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="게시물 내용을 입력해 주세요."/></label><label className="attachment-picker"><span>사진 또는 PDF 첨부 (최대 15MB)</span><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(e) => setAttachment(e.target.files?.[0] ?? null)}/>{attachment && <small><ImagePlus size={13}/> {attachment.name}</small>}</label><label>관련 링크(선택)<input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..."/></label></div><button className="pill-button" disabled={saving}>{saving ? '등록 후 목록을 확인하는 중…' : '게시물 등록'} <ArrowRight size={15}/></button></form>}
     {error && <p className="board-error" role="alert">{error}</p>}
-    {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{isAdmin ? '위 입력란에서 첫 게시물을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p></div> : <div className="post-list">{posts.map((post) => <article className="post-card" key={post.id}>{post.imageUrl && <button className="post-image" onClick={() => setSelected(post)}><img src={post.imageUrl} alt=""/></button>}<button className="post-main" onClick={() => setSelected(post)}><time>{post.date}</time><h3>{post.title}</h3><p>{post.body || '자세한 내용을 확인하세요.'}</p></button>{isAdmin && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>)}</div>}
-    {selected && <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null) }}><article className="post-detail" role="dialog" aria-modal="true" aria-label={selected.title}><button className="post-close" onClick={() => setSelected(null)} aria-label="닫기"><X/></button><time>{selected.date}</time><h2>{selected.title}</h2>{selected.imageUrl && <img className="post-detail-image" src={selected.imageUrl} alt=""/>}<p>{selected.body}</p>{selected.linkUrl && <a className="text-link" href={selected.linkUrl} target="_blank" rel="noreferrer">관련 자료 열기 <ArrowUpRight size={15}/></a>}{isAdmin && <button className="post-delete detail-delete" onClick={() => void removePost(selected)}><Trash2 size={15}/> 게시물 삭제</button>}</article></div>}
+    {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{canManage ? '위 입력란에서 게시물과 사진을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p>{isAdmin && category === 'bulletin' && <button className="sample-bulletin-button" type="button" disabled={saving} onClick={() => void createSampleBulletin()}>{saving ? '참고 주보 등록 및 목록 확인 중…' : '참고사진의 주보 예시 바로 등록'}</button>}</div> : <div className="post-list">{posts.map((post) => <article className="post-card" key={post.id}>{post.imageUrl && <button className="post-image" onClick={() => setSelected(post)}><img src={post.imageUrl} alt=""/></button>}<button className="post-main" onClick={() => setSelected(post)}><time>{post.date}</time><h3>{post.title}</h3><p>{post.body || post.fileName || '자세한 내용을 확인하세요.'}</p></button>{canManage && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>)}</div>}
+    {selected && <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null) }}><article className="post-detail" role="dialog" aria-modal="true" aria-label={selected.title}><button className="post-close" onClick={() => setSelected(null)} aria-label="닫기"><X/></button><time>{selected.date}</time><h2>{selected.title}</h2>{selected.imageUrl && <img className="post-detail-image" src={selected.imageUrl} alt="첨부 이미지"/>}<p>{selected.body}</p>{selected.fileUrl && !selected.imageUrl && <a className="text-link" href={selected.fileUrl} target="_blank" rel="noreferrer">첨부 파일 보기 · {selected.fileName || '파일 열기'} <ArrowUpRight size={15}/></a>}{selected.linkUrl && <a className="text-link" href={selected.linkUrl} target="_blank" rel="noreferrer">관련 자료 열기 <ArrowUpRight size={15}/></a>}{canManage && <button className="post-delete detail-delete" onClick={() => void removePost(selected)}><Trash2 size={15}/> 게시물 삭제</button>}</article></div>}
   </div>
 }
 
-function LoginDialog({ onClose, onLogin, message }: { onClose: () => void; onLogin: (email: string, password: string) => void; message: string }) {
-  const [email, setEmail] = useState(ADMIN_EMAIL)
+function LoginDialog({ mode, onModeChange, onClose, onAuthenticate, message }: { mode: 'login' | 'signup'; onModeChange: (mode: 'login' | 'signup') => void; onClose: () => void; onAuthenticate: (mode: 'login' | 'signup', email: string, password: string) => void; message: string }) {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  return <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}><form className="login-dialog" onSubmit={(e) => { e.preventDefault(); void onLogin(email, password) }}><button type="button" className="post-close" onClick={onClose} aria-label="닫기"><X/></button><span className="eyebrow"><i/> ADMINISTRATOR</span><h2>관리자 로그인</h2><p>관리자 계정으로 로그인하면 게시물을 등록하고 삭제할 수 있습니다.</p><label>이메일<input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)}/></label><label>비밀번호<input type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)}/></label>{message && <p className="board-error">{message}</p>}<button className="pill-button">로그인 <ArrowRight size={15}/></button><small>계정은 Firebase Authentication에서 별도로 등록·활성화해야 합니다.</small></form></div>
+  return <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}><form className="login-dialog" onSubmit={(e) => { e.preventDefault(); void onAuthenticate(mode, email, password) }}><button type="button" className="post-close" onClick={onClose} aria-label="닫기"><X/></button><span className="eyebrow"><i/> BANGAWOON ACCOUNT</span><h2>{mode === 'signup' ? '회원가입' : '로그인'}</h2><p>{mode === 'signup' ? '이메일과 비밀번호로 가입하면 게시판을 읽고 사진앨범·기도 나눔에 참여할 수 있습니다.' : '로그인한 회원은 게시판 권한에 따라 글을 등록·삭제할 수 있습니다.'}</p><label>이메일<input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)}/></label><label>비밀번호<input type="password" required minLength={6} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="6자 이상"/></label>{message && <p className="board-error">{message}</p>}<button className="pill-button">{mode === 'signup' ? '회원가입' : '로그인'} <ArrowRight size={15}/></button><button type="button" className="auth-mode-toggle" onClick={() => onModeChange(mode === 'signup' ? 'login' : 'signup')}>{mode === 'signup' ? '이미 계정이 있나요? 로그인' : '처음 오셨나요? 회원가입'}</button><small>관리자 이메일은 별도 관리자 권한을 갖고, 일반 회원은 사진앨범과 기도 나눔 게시판을 관리할 수 있습니다.</small></form></div>
 }
 
 function Timeline() {
@@ -273,7 +310,7 @@ function NewsletterArchive() {
 
 function CommunityPage({ page }: { page: Page }) {
   const isPrayer = page.id === 'prayer-share' || page.id === 'prayer'
-  return <div className="community-feature"><div className="community-feature-image"><img src={isPrayer ? images.prayer : images.sharing} alt={isPrayer ? '기도 모임 나눔' : '설교 후 말씀 나눔'}/><span>{isPrayer ? 'PRAYER · 2026.09.20' : 'FELLOWSHIP · 2026.09.26'}</span></div><div><span className="eyebrow"><i/> {isPrayer ? 'PRAY TOGETHER' : 'LIFE TOGETHER'}</span><h2>{isPrayer ? '함께 기도하고,<br/>서로를 품습니다.' : '말씀을 나누고,<br/>삶을 나눕니다.'}</h2><p>{isPrayer ? '기도 모임에서 서로의 마음을 나누고 함께 기도합니다. 구체적인 기도 제목을 게시판으로 운영할 때는 공개 범위를 선택할 수 있도록 설계할 예정입니다.' : '예배 후 나눔과 교제의 순간을 사진과 이야기로 기록합니다. 작은 만남이 쌓여 공동체의 이야기가 됩니다.'}</p><span className="content-note">현재는 참고 사진을 사용한 화면 초안입니다. 게시물 등록 기능은 추후 연결합니다.</span></div></div>
+  return <div className="community-feature"><div className="community-feature-image"><img src={isPrayer ? images.prayer : images.sharing} alt={isPrayer ? '기도 모임 나눔' : '설교 후 말씀 나눔'}/><span>{isPrayer ? 'PRAYER · 2026.09.20' : 'FELLOWSHIP · 2026.09.26'}</span></div><div><span className="eyebrow"><i/> {isPrayer ? 'PRAY TOGETHER' : 'LIFE TOGETHER'}</span><h2>{isPrayer ? <>함께 기도하고,<br/>서로를 품습니다.</> : <>말씀을 나누고,<br/>삶을 나눕니다.</>}</h2><p>{isPrayer ? '기도 모임에서 서로의 마음을 나누고 함께 기도합니다. 기도 제목은 기도 나눔 게시판에서 확인하실 수 있습니다.' : '예배 후 나눔과 교제의 순간을 사진과 이야기로 기록합니다. 작은 만남이 쌓여 공동체의 이야기가 됩니다.'}</p><span className="content-note">교회가 함께 예배하고 나눈 순간을 사진으로 담았습니다.</span></div></div>
 }
 
 function ChurchIntro({ page }: { page: Page }) {
@@ -295,8 +332,8 @@ function ComingSoon({ page }: { page: Page }) {
   return <div className="coming-content"><div className="empty-icon">{page.id === 'calendar' ? <CalendarDays/> : <BookOpen/>}</div><span>{page.section.toUpperCase()}</span><h2>{page.title} 화면을 준비하고 있습니다.</h2><p>게시할 일정이나 신청 내용을 전달해 주시면 이 화면에 실제 운영 콘텐츠를 구성하겠습니다.</p></div>
 }
 
-function Footer({ navigate, isAdmin, onAdminLogin, onAdminLogout }: { navigate: (id: string) => void; isAdmin: boolean; onAdminLogin: () => void; onAdminLogout: () => void }) {
-  return <footer className="footer"><div className="footer-main"><button className="footer-brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png" alt="반가운교회"/></button><p>하나님과의 사귐으로 변화되고<br/>함께 하나님 나라를 살아가는 공동체</p><div className="footer-address"><MapPin size={15}/>서울 성북구 성북로4길 52, 근린상가 3층 3302호</div><div className="footer-social"><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer"><Instagram size={17}/></a><a href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={18}/></a></div></div><div className="footer-bottom"><span>© 2026 반가운교회. All rights reserved.</span><div className="footer-actions"><button onClick={() => navigate('location')}>오시는 길 <ArrowRight size={13}/></button>{isAdmin ? <button onClick={onAdminLogout}><LogOut size={13}/> 관리자 로그아웃</button> : <button onClick={onAdminLogin}><LogIn size={13}/> 관리자</button>}</div></div></footer>
+function Footer({ navigate, user, isAdmin, onAuthOpen, onLogout }: { navigate: (id: string) => void; user: User | null; isAdmin: boolean; onAuthOpen: (mode?: 'login' | 'signup') => void; onLogout: () => void }) {
+  return <footer className="footer"><div className="footer-main"><button className="footer-brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png" alt="반가운교회"/></button><p>하나님과의 사귐으로 변화되고<br/>함께 하나님 나라를 살아가는 공동체</p><div className="footer-address"><MapPin size={15}/>서울 성북구 성북로4길 52, 근린상가 3층 3302호</div><div className="footer-social"><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer"><Instagram size={17}/></a><a href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={18}/></a></div></div><div className="footer-bottom"><span>© 2026 반가운교회. All rights reserved.</span><div className="footer-actions"><button onClick={() => navigate('location')}>오시는 길 <ArrowRight size={13}/></button>{user ? <><span className="signed-in-email">{isAdmin ? '관리자' : user.email}</span><button onClick={onLogout}><LogOut size={13}/> 로그아웃</button></> : <><button onClick={() => onAuthOpen('login')}><LogIn size={13}/> 로그인</button><button onClick={() => onAuthOpen('signup')}>회원가입</button></>}</div></div></footer>
 }
 
 export default App

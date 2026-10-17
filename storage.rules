@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'sonickthgmal@gmail.com';
+    }
+
+    function canManage(category, uid) {
+      return isAdmin() || (
+        request.auth != null
+        && request.auth.uid == uid
+        && category in ['gallery', 'prayer']
+      );
+    }
+
+    match /posts/{category}/{uid}/{fileName} {
+      allow read: if true;
+      allow create, update: if canManage(category, uid)
+        && request.resource.size <= 15 * 1024 * 1024
+        && request.resource.contentType.matches('(image/(jpeg|png|webp|gif)|application/pdf)');
+      allow delete: if canManage(category, uid);
+    }
+  }
+}

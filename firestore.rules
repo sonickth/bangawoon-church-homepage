@@ -6,9 +6,13 @@ service cloud.firestore {
         && request.auth.token.email == 'sonickthgmal@gmail.com';
     }
 
+    function mayManageCategory(category) {
+      return isAdmin() || (request.auth != null && category in ['gallery', 'prayer']);
+    }
+
     function validPost() {
       return request.resource.data.keys().hasOnly([
-          'category', 'title', 'body', 'date', 'imageUrl', 'linkUrl', 'authorEmail', 'createdAt'
+          'category', 'title', 'body', 'date', 'imageUrl', 'fileUrl', 'filePath', 'fileName', 'fileType', 'linkUrl', 'authorEmail', 'authorUid', 'createdAt'
         ])
         && request.resource.data.category in [
           'sermons', 'bulletin', 'notices', 'calendar', 'gallery', 'community', 'nextgen', 'prayer'
@@ -20,14 +24,21 @@ service cloud.firestore {
         && request.resource.data.body.size() <= 20000
         && request.resource.data.date is string
         && request.resource.data.authorEmail == request.auth.token.email
+        && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.createdAt == request.time;
     }
 
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isAdmin() && validPost();
+      allow create: if request.auth != null
+        && mayManageCategory(request.resource.data.category)
+        && validPost();
       allow update: if false;
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (
+        request.auth != null
+        && resource.data.category in ['gallery', 'prayer']
+        && resource.data.authorUid == request.auth.uid
+      );
     }
 
     match /{document=**} {

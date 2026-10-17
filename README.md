@@ -22,15 +22,15 @@ npm run dev
 
 ## Firebase 설정
 
-Firebase 웹 앱 설정은 `src/firebase.ts`에 적용되어 있습니다. Firebase Console에서 Authentication의 이메일/비밀번호 로그인 제공자를 켜고 관리자 계정을 등록해야 합니다. 이 프로젝트는 계정 생성이나 비밀번호 재설정을 수행하지 않습니다. Firestore 데이터베이스도 Firebase Console에서 생성되어 있어야 합니다.
+Firebase 웹 앱 설정은 `src/firebase.ts`에 적용되어 있습니다. Firebase Console에서 Authentication의 이메일/비밀번호 로그인 제공자를 켜고 Firestore 데이터베이스와 Storage 버킷을 준비해야 합니다. 사이트 방문자는 이메일/비밀번호로 회원가입하고 로그인할 수 있습니다. 지정된 관리자 계정은 `sonickthgmal@gmail.com`입니다.
 
-Firestore 보안 규칙과 게시판 복합 색인은 `firestore.rules`, `firestore.indexes.json`에 정의되어 있습니다. Firebase CLI가 설치되고 프로젝트에 로그인된 환경에서 다음 명령으로 배포합니다.
+Firestore 보안 규칙과 게시판 복합 색인은 `firestore.rules`, `firestore.indexes.json`에, 파일 업로드 규칙은 `storage.rules`에 정의되어 있습니다. 모든 방문자는 게시물을 읽을 수 있습니다. 관리자는 모든 게시판에서 등록·삭제할 수 있고, 일반 회원은 사진앨범(`gallery`)과 기도 나눔(`prayer`)에서 게시물을 등록하고 본인이 등록한 글만 삭제할 수 있습니다. Firebase CLI가 설치되고 프로젝트에 로그인된 환경에서 규칙을 배포합니다.
 
 ```sh
-npx firebase-tools deploy --only firestore:rules,firestore:indexes --project bangawoon-church-homepage
+npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage --project bangawoon-church-homepage
 ```
 
-규칙이 배포되기 전에는 Firestore 읽기/쓰기가 거절될 수 있습니다. 게시물 문서는 `posts` 컬렉션에 `category`, `title`, `body`, `date`, 선택 항목 `imageUrl`·`linkUrl`, `authorEmail`, `createdAt` 필드를 사용합니다. 현재 이미지는 URL로 저장하므로 업로드 파일은 별도 Firebase Storage 설정이 필요합니다.
+규칙 배포와 로그인 제공자 활성화 전에는 Firestore/Storage 작업이 거절될 수 있습니다. 게시물 문서는 `posts` 컬렉션에 `category`, `title`, `body`, `date`, 첨부 파일 정보, `authorEmail`, `authorUid`, `createdAt` 필드를 사용합니다. JPG, PNG, WEBP, GIF 사진과 PDF를 최대 15MB까지 첨부할 수 있습니다. 등록·삭제 후에는 Firestore에서 다시 조회해 목록 상태를 확인합니다.
 
 ## 예정 콘텐츠 데이터 구분
 
