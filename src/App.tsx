@@ -4,7 +4,7 @@ import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndP
 import type { User } from 'firebase/auth'
 import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
-import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Instagram, MapPin, Menu as MenuIcon, Search, X, Youtube, LogIn, LogOut, Trash2, ImagePlus } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Copy, Instagram, MapPin, Menu as MenuIcon, Search, X, Youtube, LogIn, LogOut, Trash2, ImagePlus } from 'lucide-react'
 import { ADMIN_EMAIL, auth, db, storage } from './firebase'
 
 type Page = { id: string; title: string; section: string; description: string }
@@ -22,6 +22,7 @@ const groups: MenuGroup[] = [
     { id: 'sermons', title: '주일설교', section: '말씀과 예배', description: '함께 들은 말씀을 다시 듣고, 삶의 자리에서 천천히 묵상합니다.' },
     { id: 'bulletin', title: '주보', section: '말씀과 예배', description: '매주 예배 순서와 교회 소식을 담은 주보를 모아봅니다.' },
     { id: 'worship', title: '예배안내', section: '말씀과 예배', description: '주일예배와 주중 예배 시간, 예배 장소를 안내합니다.' },
+    { id: 'offering', title: '온라인 봉헌', section: '말씀과 예배', description: '온라인으로 봉헌하실 수 있도록 교회 계좌를 안내합니다.' },
     { id: 'prayer', title: '기도와 예배', section: '말씀과 예배', description: '새벽을 깨우고 함께 기도하는 반가운교회의 예배를 소개합니다.' },
   ] },
   { title: '공동체', items: [
@@ -164,6 +165,7 @@ function PageContent({ page, navigate, user, isAdmin, authReady, onAuthOpen }: {
   if (page.id === 'notices') return <NewsletterArchive/>
   if (page.id === 'community-story' || page.id === 'prayer-share' || page.id === 'prayer') return <CommunityPage page={page}/>
   if (page.id === 'worship') return <div className="worship-page"><div className="service-list large"><Service day="매주 주일" title="주일예배" time="오전 11:00"/><Service day="화–금" title="새벽예배" time="오전 05:30"/><Service day="매주 금요일" title="금요기도회" time="오후 08:30"/></div><div className="worship-page-photo"><img src={images.interior} alt="반가운교회 예배 공간"/><div><span>WORSHIP TOGETHER</span><b>처음 오시는 분도<br/>편안히 함께 예배드려요.</b></div></div><button className="text-link" onClick={() => navigate('location')}>예배 장소와 오시는 길 <ArrowRight size={16}/></button></div>
+  if (page.id === 'offering') return <OfferingPage/>
   if (page.id === 'location') return <div className="location-layout"><div className="location-card"><MapPin size={22}/><div><span className="eyebrow"><i/> FIND US</span><h2>반가운교회</h2><p>서울시 성북구 성북로4길 52<br/>411동(근린상가) 3층 3302호</p><a href="https://map.naver.com/p/search/%ED%95%98%EB%82%98%ED%83%81%EA%B5%AC%ED%81%B4%EB%9F%BD%20%EC%84%9C%EC%9A%B8%20%EC%84%B1%EB%B6%81%EA%B5%AC%20%EC%84%B1%EB%B6%81%EB%A1%9C4%EA%B8%B8%2052" target="_blank" rel="noreferrer" className="text-link">네이버 지도로 길찾기 <ArrowUpRight size={16}/></a></div></div><iframe className="church-map" title="하나탁구클럽이 있는 건물의 반가운교회 위치 지도" src="https://maps.google.com/maps?q=%ED%95%98%EB%82%98%ED%83%81%EA%B5%AC%ED%81%B4%EB%9F%BD%20%EC%84%9C%EC%9A%B8%20%EC%84%B1%EB%B6%81%EA%B5%AC%20%EC%84%B1%EB%B6%81%EB%A1%9C4%EA%B8%B8%2052%20%EC%A7%80%ED%95%981%EC%B8%B5&z=18&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen/></div>
   if (page.id === 'faq') return <div className="faq-list">{['처음 방문할 때 어떻게 하면 되나요?','아이와 함께 예배드릴 수 있나요?','주차 및 건물 출입은 어떻게 하나요?'].map((question, index) => <button className="faq-item" key={question} onClick={() => setOpenFaq(openFaq === index ? null : index)}><b><span>Q{index + 1}</span>{question}<ChevronDown size={17}/></b>{openFaq === index && <p>{index === 0 ? '예배 시간에 맞춰 오시면 안내해 드립니다. 처음 오셨다면 편하게 인사해 주세요.' : index === 1 ? '어린이와 학생도 환영합니다. 가족과 함께 편안하게 예배드리실 수 있습니다.' : '주차와 건물 진입 안내는 교회에서 확인 중입니다. 방문 안내가 정리되면 이곳에 업데이트하겠습니다.'}</p>}</button>)}</div>
   if (page.id === 'sns') return <div className="sns-layout"><section className="social-preview instagram-latest"><div className="youtube-latest-heading"><div><span className="eyebrow"><i/> LATEST FROM INSTAGRAM</span><h2>반가운교회 인스타그램</h2><p>교회의 일상과 최신 게시물을 확인해 보세요.</p></div><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer">프로필 방문 <ArrowUpRight size={15}/></a></div><iframe className="instagram-latest-frame" src="https://www.instagram.com/bangawoonchurch/embed" title="반가운교회 Instagram 최신 게시물" loading="lazy" referrerPolicy="strict-origin-when-cross-origin"/><a className="social-preview-link" href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer"><Instagram size={16}/> Instagram에서 게시물 더 보기 <ArrowUpRight size={14}/></a></section><section className="social-preview youtube-latest"><div className="youtube-latest-heading"><div><span className="eyebrow"><i/> LATEST FROM YOUTUBE</span><h2>반가운교회 최신 영상</h2><p>재생 버튼을 누르면 이곳에서 바로 시청할 수 있습니다.</p></div><a href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer">채널 방문 <ArrowUpRight size={15}/></a></div><iframe className="youtube-latest-player" src="https://www.youtube-nocookie.com/embed/videoseries?list=UUuDEXkGt2YDc2rp4ZATt8ow&rel=0" title="반가운교회 YouTube 최신 영상" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/></section></div>
@@ -378,9 +380,33 @@ function CommunityPage({ page }: { page: Page }) {
 
 function ChurchIntro({ page }: { page: Page }) {
   if (page.id === 'history') return <Timeline/>
-  if (page.id === 'about') return <div className="about-feature"><img src={images.interior} alt="반가운교회 예배 공간"/><div><span className="eyebrow"><i/> OUR CHURCH</span><h2>하나님과의 사귐으로<br/>사람이 변화되는 교회</h2><p>하나님과의 인격적인 사귐을 통해 사람을 변화시키고, 변화된 사람들이 공동체와 세상 속에서 하나님 나라를 살아내도록 세워갑니다.</p><div className="content-tags"><span>대한예수교장로회 통합</span><span>서울 성북구</span></div></div></div>
-  if (page.id === 'vision') return <div className="vision-page"><ArchiveHeading eyebrow="OUR VISION" title="세 가지 목회 방향, 하나의 공동체" note="CI에 담긴 세 가지 색을 교회의 핵심 목회 방향으로 소개합니다."/><div className="vision-grid"><Value color="blue" number="01" title="영성목회" english="SPIRITUALITY" body="하나님과의 인격적인 사귐을 통해 삶의 변화를 구합니다."/><Value color="sand" number="02" title="공동체" english="COMMUNITY" body="서로 환대하고 돌보며 하나님 나라를 함께 살아갑니다."/><Value color="sage" number="03" title="다음세대" english="NEXT GENERATION" body="어린이와 학생이 믿음 안에서 자라도록 함께 세웁니다."/></div></div>
-  return <div className="pastor-feature"><div className="pastor-placeholder"><Cross size={42}/><span>PASTOR</span></div><div><span className="eyebrow"><i/> GREETING</span><h2>안경혁 목사</h2><p>담임목사님의 인사말과 목회 여정을 소개할 공간입니다. 정식 프로필 사진과 환영 인사 원고를 받으면 반가운교회의 마음을 담아 구성하겠습니다.</p><span className="content-note">초안 단계 · 목사님 사진과 인사말 자료 필요</span></div></div>
+  if (page.id === 'about') return <div className="about-page"><div className="about-feature"><img src={images.interior} alt="반가운교회 예배 공간"/><div><span className="eyebrow"><i/> OUR CHURCH</span><h2>하나님과의 사귐으로<br/>사람이 변화되는 교회</h2><p>하나님과의 인격적인 사귐을 통해 사람을 변화시키고, 그 변화된 사람들이 공동체와 세상 속에서 하나님 나라를 살아내도록 세워갑니다.</p><div className="content-tags"><span>대한예수교장로회 통합</span><span>서울 성북구</span></div></div></div><div className="church-keywords"><span className="eyebrow"><i/> OUR KEYWORDS</span><b>영성목회</b><b>다음 세대</b></div></div>
+  if (page.id === 'vision') return <div className="vision-page"><ArchiveHeading eyebrow="OUR PASTORAL PHILOSOPHY" title="하나님과 사귀며, 지금 여기서 하나님 나라를" note="한 사람의 마음에서 시작된 변화가 공동체와 세상으로 흘러가도록 말씀·기도·예배·소그룹에 집중합니다."/><div className="philosophy-list">{[
+    ['01','사귐 중심의 신앙','문제 해결과 소원 성취 중심에서 벗어나 하나님과 인격적으로 사귀는 신앙을 지향합니다.'],
+    ['02','지금 여기의 하나님 나라','죽어서 가는 천국에만 머물지 않고, 지금 여기 임한 하나님 나라를 살아갑니다.'],
+    ['03','사람이 교회입니다','교회는 건물이 아니라 하나님과 친밀히 교제하고 하나님의 다스림을 받으며 살아가는 사람입니다.'],
+    ['04','마음의 변화에 집중','겉으로 드러나는 활동보다 한 사람의 마음이 하나님 안에서 변화되는 일을 소중히 여깁니다.'],
+    ['05','영적 목마름을 채우는 신앙','프로그램과 봉사에 앞서 말씀, 기도, 예배, 소그룹을 통해 영적인 목마름이 해갈되도록 합니다.'],
+    ['06','변화가 흘러가는 선교 공동체','한 사람의 변화가 가정·학교·직장·교회·사회·나라·열방으로 흘러가 온 세상에 하나님 나라가 임하기를 지향합니다.'],
+    ['07','함께 갈망하는 영적 공동체','하나님과의 사귐과 영적 성장을 함께 갈망하는 공동체로 뿌리내리고 실제로 기능할 때 열매 맺음을 믿습니다.'],
+    ['08','있는 모습 그대로 사랑하기','소그룹 안에서 말씀을 나누고, 진실하게 나누며, 있는 모습 그대로 서로 사랑하는 공동체를 세웁니다.'],
+  ].map(([number,title,body]) => <article className="philosophy-card" key={number}><span>{number}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div><div className="philosophy-pillars"><span>말씀</span><span>기도</span><span>예배</span><span>소그룹</span><span>선교</span></div></div>
+  return <div className="pastor-feature"><div className="pastor-placeholder"><Cross size={42}/><span>PASTOR</span></div><div><span className="eyebrow"><i/> SENIOR PASTOR</span><h2>안경혁 목사</h2><p>대한예수교장로회 통합교단 소속으로, 광나루 장로회신학대학교를 졸업하고 반가운교회를 섬기고 있습니다.</p><span className="content-note">담임목사 · 대한예수교장로회 통합 · 광나루 장신대 졸업</span></div></div>
+}
+
+function OfferingPage() {
+  const [copied, setCopied] = useState(false)
+  const accountNumber = '1005-504-951566'
+  const copyAccount = async () => {
+    try {
+      await navigator.clipboard.writeText(accountNumber)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2200)
+    } catch {
+      setCopied(false)
+    }
+  }
+  return <div className="offering-page"><ArchiveHeading eyebrow="ONLINE OFFERING" title="마음과 정성을 함께 나눕니다" note="온라인으로 봉헌하실 수 있도록 교회 계좌를 안내합니다. 보내주신 정성은 반가운교회의 사역과 하나님 나라를 위해 사용됩니다."/><section className="offering-account"><div className="offering-mark"><BookOpen size={23}/></div><span>WOORI BANK · 우리은행</span><h2>반가운교회</h2><div className="offering-number"><b>{accountNumber}</b><button onClick={() => void copyAccount()} aria-label="계좌번호 복사">{copied ? '복사 완료' : <><Copy size={15}/> 계좌번호 복사</>}</button></div><p>예금주 <b>반가운교회</b></p></section><p className="offering-note">봉헌 관련 문의가 있으시면 교회로 문의해 주세요. 보내실 때 성함이나 봉헌 항목을 함께 기재하실 수 있습니다.</p></div>
 }
 
 function WelcomePage({ navigate }: { navigate: (id: string) => void }) {
