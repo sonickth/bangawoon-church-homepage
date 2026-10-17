@@ -40,11 +40,12 @@ const groups: MenuGroup[] = [
     { id: 'gallery', title: '사진앨범', section: '교회소식', description: '예배와 교제, 교회가 걸어온 순간들을 담았습니다.' },
     { id: 'sns', title: 'SNS 채널', section: '교회소식', description: '인스타그램과 유튜브에서 반가운교회의 소식을 만나보세요.' },
   ] },
-  { title: '새가족안내', items: [
+  { title: '교회안내', items: [
     { id: 'welcome', title: '처음 오셨나요?', section: '새가족안내', description: '처음 오시는 분도 편안하게 예배드릴 수 있도록 안내해 드립니다.' },
     { id: 'preview', title: '예배 미리보기', section: '새가족안내', description: '예배의 흐름과 분위기를 미리 살펴보세요.' },
     { id: 'faq', title: '자주 묻는 질문', section: '새가족안내', description: '방문 전에 궁금하신 내용을 모았습니다.' },
-    { id: 'newcomer', title: '새가족 등록', section: '새가족안내', description: '새가족 등록과 방문 문의 화면은 준비 중입니다.' },
+    { id: 'newcomer', title: '새가족 안내', section: '교회안내', description: '새가족 등록부터 일대일 교육과 소그룹 연결까지 안내합니다.' },
+    { id: 'discipleship', title: '제자훈련', section: '교회안내', description: '찾는 이부터 신앙의 기초와 영성 형성까지 함께하는 훈련 과정입니다.' },
   ] },
 ]
 const allPages = groups.flatMap((group) => group.items)
@@ -170,7 +171,9 @@ function PageContent({ page, navigate, user, isAdmin, authReady, onAuthOpen }: {
   if (page.id === 'faq') return <div className="faq-list">{['처음 방문할 때 어떻게 하면 되나요?','아이와 함께 예배드릴 수 있나요?','주차 및 건물 출입은 어떻게 하나요?'].map((question, index) => <button className="faq-item" key={question} onClick={() => setOpenFaq(openFaq === index ? null : index)}><b><span>Q{index + 1}</span>{question}<ChevronDown size={17}/></b>{openFaq === index && <p>{index === 0 ? '예배 시간에 맞춰 오시면 안내해 드립니다. 처음 오셨다면 편하게 인사해 주세요.' : index === 1 ? '어린이와 학생도 환영합니다. 가족과 함께 편안하게 예배드리실 수 있습니다.' : '주차와 건물 진입 안내는 교회에서 확인 중입니다. 방문 안내가 정리되면 이곳에 업데이트하겠습니다.'}</p>}</button>)}</div>
   if (page.id === 'sns') return <div className="sns-layout"><section className="social-preview instagram-latest"><div className="youtube-latest-heading"><div><span className="eyebrow"><i/> LATEST FROM INSTAGRAM</span><h2>반가운교회 인스타그램</h2><p>교회의 일상과 최신 게시물을 확인해 보세요.</p></div><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer">프로필 방문 <ArrowUpRight size={15}/></a></div><iframe className="instagram-latest-frame" src="https://www.instagram.com/bangawoonchurch/embed" title="반가운교회 Instagram 최신 게시물" loading="lazy" referrerPolicy="strict-origin-when-cross-origin"/><a className="social-preview-link" href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer"><Instagram size={16}/> Instagram에서 게시물 더 보기 <ArrowUpRight size={14}/></a></section><section className="social-preview youtube-latest"><div className="youtube-latest-heading"><div><span className="eyebrow"><i/> LATEST FROM YOUTUBE</span><h2>반가운교회 최신 영상</h2><p>재생 버튼을 누르면 이곳에서 바로 시청할 수 있습니다.</p></div><a href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer">채널 방문 <ArrowUpRight size={15}/></a></div><iframe className="youtube-latest-player" src="https://www.youtube-nocookie.com/embed/videoseries?list=UUuDEXkGt2YDc2rp4ZATt8ow&rel=0" title="반가운교회 YouTube 최신 영상" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/></section></div>
   if (page.id === 'welcome' || page.id === 'preview') return <WelcomePage navigate={navigate}/>
-  if (page.id === 'calendar' || page.id === 'newcomer') return <ComingSoon page={page}/>
+  if (page.id === 'newcomer') return <NewcomerPage/>
+  if (page.id === 'discipleship') return <DiscipleshipPage/>
+  if (page.id === 'calendar') return <ComingSoon page={page}/>
   if (page.id === 'nextgen' || page.id === 'nextgen-story') return <NextGenerationPage page={page}/>
   return <ChurchIntro page={page}/>
 }
@@ -407,6 +410,27 @@ function OfferingPage() {
     }
   }
   return <div className="offering-page"><ArchiveHeading eyebrow="ONLINE OFFERING" title="마음과 정성을 함께 나눕니다" note="온라인으로 봉헌하실 수 있도록 교회 계좌를 안내합니다. 보내주신 정성은 반가운교회의 사역과 하나님 나라를 위해 사용됩니다."/><section className="offering-account"><div className="offering-mark"><BookOpen size={23}/></div><span>WOORI BANK · 우리은행</span><h2>반가운교회</h2><div className="offering-number"><b>{accountNumber}</b><button onClick={() => void copyAccount()} aria-label="계좌번호 복사">{copied ? '복사 완료' : <><Copy size={15}/> 계좌번호 복사</>}</button></div><p>예금주 <b>반가운교회</b></p></section><p className="offering-note">봉헌 관련 문의가 있으시면 교회로 문의해 주세요. 보내실 때 성함이나 봉헌 항목을 함께 기재하실 수 있습니다.</p></div>
+}
+
+function NewcomerPage() {
+  const steps = [
+    ['01', '새가족 등록 신청', '새가족부원의 안내를 받아 등록카드를 작성합니다. 등록은 예배 후 담임목사님과 만나 진행하실 수 있습니다.'],
+    ['02', '담임목사님과 일대일 교육', '담임목사님과 시간을 정해 일대일로 4주간 교육과정을 가집니다.'],
+    ['03', '소그룹 모임과 함께하는 신앙생활', '새가족 교육과정을 마친 뒤 소그룹 모임에 참석하며 공동체 안에서 신앙생활을 이어갑니다.'],
+  ]
+  return <div className="newcomer-page"><ArchiveHeading eyebrow="WELCOME TO BANGAWOON" title="반가운 공동체에 오신 것을 환영합니다" note="새가족 등록부터 공동체에 함께하기까지 차근차근 안내해 드립니다."/><div className="newcomer-steps">{steps.map(([number,title,body]) => <article className="newcomer-step" key={number}><span>{number}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div><p className="newcomer-note">처음 오신 날 예배 후 담임목사님이나 새가족부원에게 말씀해 주세요. 반갑게 맞이하고 다음 과정을 안내해 드리겠습니다.</p></div>
+}
+
+function DiscipleshipPage() {
+  const courses = [
+    ['01', '풍성한 삶으로의 초대', '찾는 이를 위한 과정', '8주 과정'],
+    ['02', '풍성한 삶의 첫걸음', '초신자를 위한 과정', '10주 과정'],
+    ['03', '풍성한 삶의 기초', '균형 있는 신앙을 위한 과정', '12주 과정'],
+    ['04', '내적치유 과정', '소그룹으로 함께하는 과정', '12주 과정'],
+    ['05', '향심기도 훈련', '하나님과의 일치를 위한 기도 훈련', '기도 훈련'],
+    ['06', '영성 형성 기도 과정', '일대일 영적 지도 과정', '일대일 과정'],
+  ]
+  return <div className="discipleship-page"><ArchiveHeading eyebrow="GROWING IN FAITH" title="함께 배우고, 함께 자랍니다" note="삶의 자리에서 하나님과 동행하도록 돕는 반가운교회의 제자훈련 과정입니다."/><div className="discipleship-intro"><span className="eyebrow"><i/> DISCIPLESHIP & SPIRITUAL FORMATION</span><p>찾는 이에게는 믿음의 초대를, 신앙의 첫걸음을 걷는 이에게는 든든한 기초를, 공동체에는 함께 깊어지는 영성의 길을 안내합니다.</p></div><div className="discipleship-grid">{courses.map(([number,title,description,duration]) => <article className="discipleship-card" key={number}><span className="discipleship-number">{number}</span><span className="discipleship-duration">{duration}</span><h3>{title}</h3><p>{description}</p></article>)}</div><p className="discipleship-note">과정의 일정과 참여 안내는 교회 공지 또는 예배 후 교회에서 확인해 주세요.</p></div>
 }
 
 function WelcomePage({ navigate }: { navigate: (id: string) => void }) {
