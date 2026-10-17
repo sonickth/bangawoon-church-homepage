@@ -12,7 +12,7 @@ service cloud.firestore {
 
     function validPost() {
       return request.resource.data.keys().hasOnly([
-          'category', 'title', 'body', 'date', 'imageUrl', 'fileUrl', 'filePath', 'fileName', 'fileType', 'linkUrl', 'authorEmail', 'authorUid', 'createdAt'
+          'category', 'title', 'body', 'date', 'imageUrl', 'fileUrl', 'filePath', 'fileName', 'fileType', 'attachments', 'linkUrl', 'authorEmail', 'authorUid', 'createdAt'
         ])
         && request.resource.data.category in [
           'sermons', 'bulletin', 'notices', 'calendar', 'gallery', 'community', 'nextgen', 'prayer'
@@ -25,6 +25,8 @@ service cloud.firestore {
         && request.resource.data.date is string
         && request.resource.data.authorEmail == request.auth.token.email
         && request.resource.data.authorUid == request.auth.uid
+        && (!('attachments' in request.resource.data)
+          || (request.resource.data.attachments is list && request.resource.data.attachments.size() <= 10))
         && request.resource.data.createdAt == request.time;
     }
 
