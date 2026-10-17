@@ -187,12 +187,23 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
   const [attachment, setAttachment] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
   const [saving, setSaving] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const canManage = isAdmin || (!!user && memberBoardCategories.has(category))
   const postsQuery = query(collection(db, 'posts'), where('category', '==', category), orderBy('date', 'desc'))
 
   const refreshPosts = async () => {
     const snapshot = await getDocs(postsQuery)
     setPosts(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ChurchPost)))
+    setError('')
+  }
+
+  const refreshList = async () => {
+    setRefreshing(true)
+    try { await refreshPosts() }
+    catch (cause) {
+      const details = cause instanceof Error ? cause.message : '다시 조회하지 못했습니다.'
+      setError(`게시물 재조회 실패: ${details}`)
+    } finally { setRefreshing(false) }
   }
 
   useEffect(() => {
@@ -201,9 +212,10 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
       setPosts(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ChurchPost)))
       setLoading(false)
       setError('')
-    }, () => {
+    }, (cause) => {
       setLoading(false)
-      setError('게시물을 불러오지 못했습니다. Firestore 데이터베이스와 규칙 배포 상태를 확인해 주세요.')
+      console.error('Firestore 게시판 조회 오류:', cause)
+      setError(`게시물을 불러오지 못했습니다 (${cause.code}). 다시 조회해 보세요. 계속되면 Firebase 규칙/색인 배포 상태를 확인해 주세요.`)
     })
   }, [category])
 
@@ -273,7 +285,8 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
     </div>
     {!authReady && <p className="board-status">로그인 상태를 확인하고 있습니다.</p>}
     {canManage && <form className="post-form" onSubmit={createPost}><h3>새 게시물 등록</h3><div className="post-form-grid"><label>제목<input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="게시물 제목"/></label><label>게시 날짜<input required type="date" value={date} onChange={(e) => setDate(e.target.value)}/></label><label className="wide-field">내용<textarea maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="게시물 내용을 입력해 주세요."/></label><label className="attachment-picker"><span>사진 또는 PDF 첨부 (최대 15MB)</span><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(e) => setAttachment(e.target.files?.[0] ?? null)}/>{attachment && <small><ImagePlus size={13}/> {attachment.name}</small>}</label><label>관련 링크(선택)<input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..."/></label></div><button className="pill-button" disabled={saving}>{saving ? '등록 후 목록을 확인하는 중…' : '게시물 등록'} <ArrowRight size={15}/></button></form>}
-    {error && <p className="board-error" role="alert">{error}</p>}
+    {error && <div className="board-error" role="alert"><span>{error}</span><button type="button" onClick={() => void refreshList()} disabled={refreshing}>{refreshing ? '조회 중…' : '다시 조회'}</button></div>}
+    <div className="post-list-tools"><span>{posts.length}개 게시물</span><button type="button" onClick={() => void refreshList()} disabled={refreshing}>{refreshing ? '다시 조회 중…' : '목록 다시 조회'}</button></div>
     {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{canManage ? '위 입력란에서 게시물과 사진을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p>{isAdmin && category === 'bulletin' && <button className="sample-bulletin-button" type="button" disabled={saving} onClick={() => void createSampleBulletin()}>{saving ? '참고 주보 등록 및 목록 확인 중…' : '참고사진의 주보 예시 바로 등록'}</button>}</div> : <div className="post-list">{posts.map((post) => <article className="post-card" key={post.id}>{post.imageUrl && <button className="post-image" onClick={() => setSelected(post)}><img src={post.imageUrl} alt=""/></button>}<button className="post-main" onClick={() => setSelected(post)}><time>{post.date}</time><h3>{post.title}</h3><p>{post.body || post.fileName || '자세한 내용을 확인하세요.'}</p></button>{canManage && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>)}</div>}
     {selected && <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null) }}><article className="post-detail" role="dialog" aria-modal="true" aria-label={selected.title}><button className="post-close" onClick={() => setSelected(null)} aria-label="닫기"><X/></button><time>{selected.date}</time><h2>{selected.title}</h2>{selected.imageUrl && <img className="post-detail-image" src={selected.imageUrl} alt="첨부 이미지"/>}<p>{selected.body}</p>{selected.fileUrl && !selected.imageUrl && <a className="text-link" href={selected.fileUrl} target="_blank" rel="noreferrer">첨부 파일 보기 · {selected.fileName || '파일 열기'} <ArrowUpRight size={15}/></a>}{selected.linkUrl && <a className="text-link" href={selected.linkUrl} target="_blank" rel="noreferrer">관련 자료 열기 <ArrowUpRight size={15}/></a>}{canManage && <button className="post-delete detail-delete" onClick={() => void removePost(selected)}><Trash2 size={15}/> 게시물 삭제</button>}</article></div>}
   </div>
