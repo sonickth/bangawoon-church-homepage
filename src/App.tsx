@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth'
 import type { User } from 'firebase/auth'
-import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Copy, Instagram, MapPin, Menu as MenuIcon, Search, X, Youtube, LogIn, LogOut, Trash2, ImagePlus } from 'lucide-react'
 import { ADMIN_EMAIL, auth, db, storage } from './firebase'
@@ -85,13 +85,29 @@ function App() {
     setAuthReady(true)
   }), [])
 
-  const authenticate = async (mode: 'login' | 'signup', email: string, password: string) => {
+  const authenticate = async (mode: 'login' | 'signup', email: string, password: string, name = '', phone = '') => {
     setAuthMessage('')
     try {
-      if (mode === 'signup') await createUserWithEmailAndPassword(auth, email.trim(), password)
-      else await signInWithEmailAndPassword(auth, email.trim(), password)
+      if (mode === 'signup') {
+        const credential = await createUserWithEmailAndPassword(auth, email.trim(), password)
+        await updateProfile(credential.user, { displayName: name.trim() })
+        setUser(credential.user)
+        try {
+          await setDoc(doc(db, 'userProfiles', credential.user.uid), {
+            uid: credential.user.uid,
+            displayName: name.trim(),
+            phoneNumber: phone.trim(),
+            createdAt: serverTimestamp(),
+          })
+          setAuthMessage('회원가입과 로그인이 완료되었습니다.')
+        } catch {
+          setAuthMessage('회원가입과 로그인은 완료되었지만 전화번호 저장에 실패했습니다. Firestore 규칙 배포 상태를 확인해 주세요.')
+        }
+      } else {
+        await signInWithEmailAndPassword(auth, email.trim(), password)
+        setAuthMessage('로그인되었습니다.')
+      }
       setLoginOpen(false)
-      setAuthMessage(mode === 'signup' ? '회원가입과 로그인이 완료되었습니다.' : '로그인되었습니다.')
     } catch {
       setAuthMessage(mode === 'signup' ? '회원가입에 실패했습니다. 이메일 형식, 비밀번호(6자 이상), Firebase 이메일 로그인 설정을 확인해 주세요.' : '로그인에 실패했습니다. 이메일과 비밀번호를 확인해 주세요.')
     }
@@ -105,7 +121,7 @@ function App() {
       <button className="brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png" alt="반가운교회" /></button>
       <nav className="desktop-nav">{groups.map((group) => <div className="nav-group" key={group.title}><button onClick={() => navigate(group.items[0].id)}>{group.title}<ChevronDown size={13}/></button><div className="dropdown">{group.items.map((item) => <button key={item.id} onClick={() => navigate(item.id)}>{item.title}</button>)}</div></div>)}</nav>
       <button className="visit-button" onClick={() => navigate('location')}>예배와 방문 안내 <ArrowUpRight size={15}/></button>
-      <div className="header-auth">{user ? <><span>{isAdmin ? '관리자' : user.email}</span><button onClick={() => { void signOut(auth); setAuthMessage('로그아웃되었습니다.') }}><LogOut size={13}/> 로그아웃</button></> : <><button onClick={() => openAuth('login')}><LogIn size={14}/> 로그인</button><button onClick={() => openAuth('signup')}>회원가입</button></>}</div>
+      <div className="header-auth">{user ? <><span>{user.displayName || (isAdmin ? '관리자' : user.email)}</span><button onClick={() => { void signOut(auth); setAuthMessage('로그아웃되었습니다.') }}><LogOut size={13}/> 로그아웃</button></> : <><button onClick={() => openAuth('login')}><LogIn size={14}/> 로그인</button><button onClick={() => openAuth('signup')}>회원가입</button></>}</div>
       <button className="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)} aria-label="메뉴 열기">{mobileOpen ? <X/> : <MenuIcon/>}</button>
     </header>
     {mobileOpen && <div className="mobile-nav">{groups.map((group) => <div key={group.title}><p>{group.title}</p>{group.items.map((item) => <button key={item.id} onClick={() => navigate(item.id)}>{item.title}<ArrowRight size={14}/></button>)}</div>)}</div>}
@@ -346,10 +362,12 @@ function SearchDialog({ onClose, onNavigate }: { onClose: () => void; onNavigate
   return <div className="post-overlay search-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}><section className="search-dialog" role="dialog" aria-modal="true" aria-label="사이트 검색"><button className="post-close" onClick={onClose} aria-label="검색 닫기"><X/></button><span className="eyebrow"><i/> BANGAWOON SEARCH</span><h2>무엇을 찾으세요?</h2><label className="search-input-wrap"><Search size={19}/><input type="search" autoFocus value={term} onChange={(e) => setTerm(e.target.value)} placeholder="메뉴와 게시물 검색" aria-label="검색어"/></label><div className="search-results" aria-live="polite">{!normalizedTerm ? <p className="search-hint">메뉴 이름이나 게시물 제목, 내용을 검색해 보세요.</p> : <>{pageResults.map((item) => <button className="search-result" key={`page-${item.id}`} onClick={() => goToPage(item.id)}><span>메뉴 · {item.section}</span><b>{item.title}</b><ArrowRight size={16}/></button>)}{postResults.map((item) => { const destination = pageIdByCategory[item.category]; const categoryName = allPages.find((page) => page.id === destination)?.title ?? '게시판'; return <button className="search-result" key={`post-${item.id}`} onClick={() => destination && goToPage(destination)} disabled={!destination}><span>게시물 · {categoryName} · {item.date}</span><b>{item.title}</b><small>{item.body || '게시물 내용을 확인하세요.'}</small><ArrowRight size={16}/></button> })}{!hasResults && !loading && <p className="search-hint">검색 결과가 없습니다.</p>}</>}{normalizedTerm && loading && <p className="search-hint">게시물을 함께 검색하고 있습니다…</p>}{normalizedTerm && loadError && <p className="search-load-error">게시물을 불러오지 못했습니다. 메뉴 검색 결과는 계속 표시됩니다.</p>}</div></section></div>
 }
 
-function LoginDialog({ mode, onModeChange, onClose, onAuthenticate, message }: { mode: 'login' | 'signup'; onModeChange: (mode: 'login' | 'signup') => void; onClose: () => void; onAuthenticate: (mode: 'login' | 'signup', email: string, password: string) => void; message: string }) {
+function LoginDialog({ mode, onModeChange, onClose, onAuthenticate, message }: { mode: 'login' | 'signup'; onModeChange: (mode: 'login' | 'signup') => void; onClose: () => void; onAuthenticate: (mode: 'login' | 'signup', email: string, password: string, name?: string, phone?: string) => void; message: string }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  return <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}><form className="login-dialog" onSubmit={(e) => { e.preventDefault(); void onAuthenticate(mode, email, password) }}><button type="button" className="post-close" onClick={onClose} aria-label="닫기"><X/></button><span className="eyebrow"><i/> BANGAWOON ACCOUNT</span><h2>{mode === 'signup' ? '회원가입' : '로그인'}</h2><p>{mode === 'signup' ? '이메일과 비밀번호로 가입하면 게시판을 읽고 사진앨범·기도 나눔에 참여할 수 있습니다.' : '로그인한 회원은 게시판 권한에 따라 글을 등록·삭제할 수 있습니다.'}</p><label>이메일<input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)}/></label><label>비밀번호<input type="password" required minLength={6} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="6자 이상"/></label>{message && <p className="board-error">{message}</p>}<button className="pill-button">{mode === 'signup' ? '회원가입' : '로그인'} <ArrowRight size={15}/></button><button type="button" className="auth-mode-toggle" onClick={() => onModeChange(mode === 'signup' ? 'login' : 'signup')}>{mode === 'signup' ? '이미 계정이 있나요? 로그인' : '처음 오셨나요? 회원가입'}</button><small>관리자 이메일은 별도 관리자 권한을 갖고, 일반 회원은 사진앨범과 기도 나눔 게시판을 관리할 수 있습니다.</small></form></div>
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  return <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}><form className="login-dialog" onSubmit={(e) => { e.preventDefault(); void onAuthenticate(mode, email, password, name, phone) }}><button type="button" className="post-close" onClick={onClose} aria-label="닫기"><X/></button><span className="eyebrow"><i/> BANGAWOON ACCOUNT</span><h2>{mode === 'signup' ? '회원가입' : '로그인'}</h2><p>{mode === 'signup' ? '이름과 연락처를 등록하고 교회 홈페이지 회원으로 함께해 주세요.' : '로그인한 회원은 게시판 권한에 따라 글을 등록·삭제할 수 있습니다.'}</p>{mode === 'signup' && <><label>이름<input type="text" required autoComplete="name" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} placeholder="이름을 입력해 주세요"/></label><label>전화번호<input type="tel" required autoComplete="tel" maxLength={20} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000"/></label></>}<label>이메일<input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)}/></label><label>비밀번호<input type="password" required minLength={6} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="6자 이상"/></label>{message && <p className="board-error">{message}</p>}<button className="pill-button">{mode === 'signup' ? '회원가입' : '로그인'} <ArrowRight size={15}/></button><button type="button" className="auth-mode-toggle" onClick={() => onModeChange(mode === 'signup' ? 'login' : 'signup')}>{mode === 'signup' ? '이미 계정이 있나요? 로그인' : '처음 오셨나요? 회원가입'}</button><small>관리자 이메일은 별도 관리자 권한을 갖고, 일반 회원은 사진앨범과 기도 나눔 게시판을 관리할 수 있습니다.</small></form></div>
 }
 
 function Timeline() {

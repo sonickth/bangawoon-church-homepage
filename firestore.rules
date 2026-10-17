@@ -43,6 +43,23 @@ service cloud.firestore {
       );
     }
 
+    match /userProfiles/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'phoneNumber', 'createdAt'])
+        && request.resource.data.keys().hasAll(['uid', 'displayName', 'phoneNumber', 'createdAt'])
+        && request.resource.data.uid == userId
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 40
+        && request.resource.data.phoneNumber is string
+        && request.resource.data.phoneNumber.size() >= 9
+        && request.resource.data.phoneNumber.size() <= 20
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
