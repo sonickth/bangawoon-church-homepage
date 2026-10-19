@@ -463,19 +463,76 @@ function ComingSoon({ page }: { page: Page }) {
   return <div className="coming-content"><div className="empty-icon">{page.id === 'calendar' ? <CalendarDays/> : <BookOpen/>}</div><span>{page.section.toUpperCase()}</span><h2>{page.title} 화면을 준비하고 있습니다.</h2><p>게시할 일정이나 신청 내용을 전달해 주시면 이 화면에 실제 운영 콘텐츠를 구성하겠습니다.</p></div>
 }
 
+type SermonVideo = { id: string; title: string; date: string }
+type SermonFeedResponse = { status?: string; items?: Array<{ title?: string; link?: string; guid?: string; pubDate?: string }> }
+
+const fallbackSermonVideos: SermonVideo[] = [
+  { id: '67bO88fXKvY', title: '2026. 10. 18 주일예배 | 안경혁 목사', date: '2026. 10. 18' },
+  { id: 'Blw0d75jCYc', title: '2026. 10. 11 주일예배 | 안경혁 목사', date: '2026. 10. 11' },
+]
+
 function SermonsPlaylistPage() {
-  const [selectedVideoId, setSelectedVideoId] = useState('67bO88fXKvY')
+  const [videos, setVideos] = useState<SermonVideo[]>(fallbackSermonVideos)
+  const [selectedVideoId, setSelectedVideoId] = useState(fallbackSermonVideos[0].id)
   const [currentPage, setCurrentPage] = useState(1)
+  const [feedStatus, setFeedStatus] = useState('')
   const livePlaylistUrl = 'https://www.youtube.com/playlist?list=UULVuDEXkGt2YDc2rp4ZATt8ow'
-  const videos = [
-    { id: '67bO88fXKvY', title: '2026. 10. 18 주일예배 | 안경혁 목사', date: '2026. 10. 18' },
-    { id: 'Blw0d75jCYc', title: '2026. 10. 11 주일예배 | 안경혁 목사', date: '2026. 10. 11' },
-  ]
+
+  useEffect(() => {
+    const cacheKey = 'bangawoon-sunday-sermon-feed-v1'
+    const cached = localStorage.getItem(cacheKey)
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as { savedAt: number; videos: SermonVideo[] }
+        if (Date.now() - parsed.savedAt < 6 * 60 * 60 * 1000 && parsed.videos.length) setVideos(parsed.videos)
+      } catch { localStorage.removeItem(cacheKey) }
+    }
+
+    const callbackName = `bangawoonSermonFeed${Date.now()}`
+    const globalWindow = window as unknown as Record<string, ((data: SermonFeedResponse) => void) | undefined>
+    const script = document.createElement('script')
+    let settled = false
+    const timeout = window.setTimeout(() => finish(false), 12000)
+    const finish = (success: boolean) => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timeout)
+      delete globalWindow[callbackName]
+      script.remove()
+      if (!success) setFeedStatus('재생목록을 새로 불러오지 못해 확인된 영상을 표시합니다.')
+    }
+    globalWindow[callbackName] = (data) => {
+      const parsedVideos = (data.items ?? []).flatMap((item) => {
+        const title = item.title ?? ''
+        if (!/주일\s*예배/.test(title)) return []
+        const videoId = item.link?.match(/[?&]v=([^&]+)/)?.[1] ?? item.guid?.match(/[?&]v=([^&]+)/)?.[1]
+        const dateMatch = title.match(/(20\d{2})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/)
+        if (!videoId || !dateMatch) return []
+        const date = `${dateMatch[1]}. ${dateMatch[2].padStart(2, '0')}. ${dateMatch[3].padStart(2, '0')}`
+        return [{ id: videoId, date, title: `${date} 주일예배 | 안경혁 목사` }]
+      })
+      const uniqueVideos = Array.from(new Map(parsedVideos.map((video) => [video.date, video])).values())
+        .sort((a, b) => b.date.localeCompare(a.date))
+      if (data.status === 'ok' && uniqueVideos.length) {
+        setVideos(uniqueVideos)
+        setSelectedVideoId((current) => uniqueVideos.some((video) => video.id === current) ? current : uniqueVideos[0].id)
+        setCurrentPage(1)
+        localStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), videos: uniqueVideos }))
+        setFeedStatus('')
+        finish(true)
+      } else finish(false)
+    }
+    script.onerror = () => finish(false)
+    const feedUrl = 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULVuDEXkGt2YDc2rp4ZATt8ow'
+    script.src = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&callback=${callbackName}`
+    document.body.appendChild(script)
+    return () => { window.clearTimeout(timeout); delete globalWindow[callbackName]; script.remove() }
+  }, [])
   const pageSize = 10
   const totalPages = Math.max(1, Math.ceil(videos.length / pageSize))
   const pageVideos = videos.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const selectedVideo = videos.find((video) => video.id === selectedVideoId)
-  return <div className="sermons-page"><ArchiveHeading eyebrow="SUNDAY WORSHIP · YOUTUBE LIVE" title="날짜별 주일예배 다시보기" note="주일예배 영상을 최신 날짜순으로 확인하세요. 목록에서 제목을 누르면 선택한 영상이 재생됩니다."/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> YOUTUBE LIVE ARCHIVE</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube에서 전체 목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column">{selectedVideo && <><iframe className="sermon-live-player" src={`https://www.youtube-nocookie.com/embed/${selectedVideo.id}?rel=0`} title={selectedVideo.title} referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/><div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo.title}</b></div></>}</div><aside className="sermon-video-list"><h2>설교 영상 목록 <span>{videos.length}</span></h2>{pageVideos.map((video) => <button className={`sermon-video-item${video.id === selectedVideoId ? ' selected' : ''}`} key={video.id} onClick={() => setSelectedVideoId(video.id)} aria-pressed={video.id === selectedVideoId}><img src={`https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`} alt="" loading="lazy"/><span><time>{video.date}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}<nav className="sermon-pagination" aria-label="설교 영상 페이지"><button type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages}>다음</button></nav></aside></div><p className="sermon-live-note">주일예배 재생목록에서 확인한 공개 영상을 표시합니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C/streams" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 라이브 탭 열기 <ArrowUpRight size={15}/></a></div>
+  return <div className="sermons-page"><ArchiveHeading eyebrow="SUNDAY WORSHIP · YOUTUBE LIVE" title="날짜별 주일예배 다시보기" note="주일예배 영상을 최신 날짜순으로 확인하세요. 목록에서 제목을 누르면 선택한 영상이 재생됩니다."/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> YOUTUBE LIVE ARCHIVE</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube에서 전체 목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column">{selectedVideo && <><iframe className="sermon-live-player" src={`https://www.youtube-nocookie.com/embed/${selectedVideo.id}?rel=0`} title={selectedVideo.title} referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/><div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo.title}</b></div></>}</div><aside className="sermon-video-list"><h2>설교 영상 목록 <span>{videos.length}</span></h2>{feedStatus && <p className="sermon-list-status" role="status">{feedStatus}</p>}{pageVideos.map((video) => <button className={`sermon-video-item${video.id === selectedVideoId ? ' selected' : ''}`} key={video.id} onClick={() => setSelectedVideoId(video.id)} aria-pressed={video.id === selectedVideoId}><img src={`https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`} alt="" loading="lazy"/><span><time>{video.date}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}<nav className="sermon-pagination" aria-label="설교 영상 페이지"><button type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages}>다음</button></nav></aside></div><p className="sermon-live-note">주일예배 재생목록에서 가져온 최신 공개 영상입니다. 한 페이지에 최대 10개를 표시합니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C/streams" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 라이브 탭 열기 <ArrowUpRight size={15}/></a></div>
 }
 
 
