@@ -516,6 +516,7 @@ function SermonsPlaylistPage({ playlistId, resolvePlaylistTitle, worshipName, fa
   const [currentPage, setCurrentPage] = useState(1)
   const [activePlaylistId, setActivePlaylistId] = useState(playlistId)
   const [playerReady, setPlayerReady] = useState(false)
+  const [playerError, setPlayerError] = useState('')
   const [listMessage, setListMessage] = useState(`${worshipName} 재생목록을 확인하고 있습니다.`)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
@@ -608,16 +609,29 @@ function SermonsPlaylistPage({ playlistId, resolvePlaylistTitle, worshipName, fa
   }, [playlistId, resolvePlaylistTitle, worshipName, fallbackVideos])
   useEffect(() => {
     let active = true
+    let readyTimer = 0
+    let readyAttempts = 0
+    let previousCallback: (() => void) | undefined
+    let installedCallback: (() => void) | undefined
     const initializePlayer = () => {
-      if (!active || !activePlaylistId || !window.YT || !playerContainerRef.current || playerRef.current) return
-      playerRef.current = new window.YT.Player(playerContainerRef.current, {
-        width: '100%',
-        height: '100%',
-        playerVars: { listType: 'playlist', list: activePlaylistId, origin: window.location.origin, autoplay: 0 },
-        events: { onReady: ({ target }) => { playerRef.current = target; setPlayerReady(true) } },
-      })
+      const Player = window.YT?.Player
+      if (!active || !activePlaylistId || typeof Player !== 'function' || !playerContainerRef.current || playerRef.current) return false
+      try {
+        playerRef.current = new Player(playerContainerRef.current, {
+          width: '100%',
+          height: '100%',
+          playerVars: { listType: 'playlist', list: activePlaylistId, origin: window.location.origin, autoplay: 0 },
+          events: { onReady: ({ target }) => { playerRef.current = target; setPlayerReady(true); setPlayerError('') } },
+        })
+        if (readyTimer) { window.clearInterval(readyTimer); readyTimer = 0 }
+        return true
+      } catch {
+        setPlayerError('YouTube 플레이어를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+        return false
+      }
     }
-    if (window.YT) initializePlayer()
+    if (!activePlaylistId) return
+    if (typeof window.YT?.Player === 'function') initializePlayer()
     else {
       const script = document.querySelector<HTMLScriptElement>('script[data-youtube-iframe-api]') ?? document.createElement('script')
       if (!script.src) {
@@ -625,12 +639,30 @@ function SermonsPlaylistPage({ playlistId, resolvePlaylistTitle, worshipName, fa
         script.dataset.youtubeIframeApi = 'true'
         document.head.appendChild(script)
       }
-      const previousCallback = window.onYouTubeIframeAPIReady
-      window.onYouTubeIframeAPIReady = () => { previousCallback?.(); initializePlayer() }
+      previousCallback = window.onYouTubeIframeAPIReady
+      installedCallback = () => {
+        try { previousCallback?.() } catch { /* Continue to initialize this page's player. */ }
+        initializePlayer()
+      }
+      window.onYouTubeIframeAPIReady = installedCallback
+      readyTimer = window.setInterval(() => {
+        readyAttempts += 1
+        if (initializePlayer()) window.clearInterval(readyTimer)
+        else if (readyAttempts >= 200) {
+          window.clearInterval(readyTimer)
+          if (active && !playerRef.current) setPlayerError('YouTube 플레이어를 불러오지 못했습니다. 페이지를 새로고침해 주세요.')
+        }
+      }, 50)
     }
-    return () => { active = false; playerRef.current?.destroy(); playerRef.current = null }
+    return () => {
+      active = false
+      if (readyTimer) window.clearInterval(readyTimer)
+      if (installedCallback && window.onYouTubeIframeAPIReady === installedCallback) window.onYouTubeIframeAPIReady = previousCallback
+      playerRef.current?.destroy()
+      playerRef.current = null
+    }
   }, [activePlaylistId])
-  return <div className="sermons-page"><ArchiveHeading eyebrow={`${worshipName.toUpperCase()} · YOUTUBE PLAYLIST`} title={`날짜별 ${worshipName} 다시보기`} note={`반가운교회 ${worshipName} 재생목록을 날짜순으로 확인하세요. 영상 항목을 누른 뒤 플레이어의 재생 버튼을 누르면 시청할 수 있습니다.`}/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> {worshipName.toUpperCase()} PLAYLIST</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube 재생목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column"><div ref={playerContainerRef} className="sermon-live-player" aria-label={`선택한 ${worshipName} 영상 플레이어`}/><div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo?.title ?? `${worshipName} 영상 목록을 불러오면 재생할 수 있습니다.`}</b></div></div><aside className="sermon-video-list"><h2>{worshipName} 영상 목록 <span>{videos.length}</span></h2>{pageVideos.map((video) => <button className={`sermon-video-item${video.index === selectedIndex ? ' selected' : ''}`} key={video.id ?? video.index} onClick={() => { setSelectedIndex(video.index); if (!playerReady) return; if (video.id) playerRef.current?.cueVideoById(video.id); else playerRef.current?.cuePlaylist({ list: playlistId, listType: 'playlist', index: video.index - 1 }) }} aria-pressed={video.index === selectedIndex}>{video.thumbnailId ? <img src={`https://i.ytimg.com/vi/${video.thumbnailId}/mqdefault.jpg`} alt="" loading="lazy"/> : <span className="sermon-video-thumb"><Youtube size={20}/></span>}<span><time>{video.date}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}{videos.length > 0 && <nav className="sermon-pagination" aria-label={`${worshipName} 영상 페이지`}><button type="button" onClick={() => { const page = Math.max(1, currentPage - 1); setCurrentPage(page); setSelectedIndex(videos[(page - 1) * pageSize]?.index ?? videos[0].index) }} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => { const page = Math.min(totalPages, currentPage + 1); setCurrentPage(page); setSelectedIndex(videos[(page - 1) * pageSize]?.index ?? videos[0].index) }} disabled={currentPage === totalPages}>다음</button></nav>}</aside></div><p className="sermon-live-note">{listMessage} 자동 갱신은 5분마다 확인합니다. 한 페이지에 10개씩 보여줍니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 채널 열기 <ArrowUpRight size={15}/></a></div>
+  return <div className="sermons-page"><ArchiveHeading eyebrow={`${worshipName.toUpperCase()} · YOUTUBE PLAYLIST`} title={`날짜별 ${worshipName} 다시보기`} note={`반가운교회 ${worshipName} 재생목록을 날짜순으로 확인하세요. 영상 항목을 누른 뒤 플레이어의 재생 버튼을 누르면 시청할 수 있습니다.`}/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> {worshipName.toUpperCase()} PLAYLIST</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube 재생목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column"><div className="sermon-live-player" aria-label={`선택한 ${worshipName} 영상 플레이어`}><div ref={playerContainerRef} className="sermon-player-frame"/>{!playerReady && <div className="sermon-player-status">{playerError || (activePlaylistId ? 'YouTube 플레이어를 준비하고 있습니다.' : '재생목록을 확인하고 있습니다.')}</div>}</div><div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo?.title ?? `${worshipName} 영상 목록을 불러오면 재생할 수 있습니다.`}</b></div></div><aside className="sermon-video-list"><h2>{worshipName} 영상 목록 <span>{videos.length}</span></h2>{pageVideos.map((video) => <button className={`sermon-video-item${video.index === selectedIndex ? ' selected' : ''}`} key={video.id ?? video.index} onClick={() => { setSelectedIndex(video.index); if (!playerReady) return; if (video.id) playerRef.current?.cueVideoById(video.id); else playerRef.current?.cuePlaylist({ list: activePlaylistId, listType: 'playlist', index: video.index - 1 }) }} aria-pressed={video.index === selectedIndex}>{video.thumbnailId ? <img src={`https://i.ytimg.com/vi/${video.thumbnailId}/mqdefault.jpg`} alt="" loading="lazy"/> : <span className="sermon-video-thumb"><Youtube size={20}/></span>}<span><time>{video.date}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}{videos.length > 0 && <nav className="sermon-pagination" aria-label={`${worshipName} 영상 페이지`}><button type="button" onClick={() => { const page = Math.max(1, currentPage - 1); setCurrentPage(page); setSelectedIndex(videos[(page - 1) * pageSize]?.index ?? videos[0].index) }} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => { const page = Math.min(totalPages, currentPage + 1); setCurrentPage(page); setSelectedIndex(videos[(page - 1) * pageSize]?.index ?? videos[0].index) }} disabled={currentPage === totalPages}>다음</button></nav>}</aside></div><p className="sermon-live-note">{listMessage} 자동 갱신은 5분마다 확인합니다. 한 페이지에 10개씩 보여줍니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 채널 열기 <ArrowUpRight size={15}/></a></div>
 }
 
 
