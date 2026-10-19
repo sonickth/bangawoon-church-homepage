@@ -65,7 +65,7 @@ const images = {
   board: '/images/hallway-board.jpg', opening: '/images/sanctuary-opening.jpg', sheet1: '/images/sermon-sheet-01.jpg',
   sheet2: '/images/sermon-sheet-02.jpg', sharing: '/images/after-sermon-sharing.jpg', practice: '/images/practice-room-first-service.jpg',
   bulletin1: '/images/bulletin-01.jpg', bulletin2: '/images/bulletin-02.jpg', newsletter1: '/images/newsletter-01.jpg',
-  newsletter2: '/images/newsletter-02.jpg', newsletter3: '/images/newsletter-03.jpg', pastor: '/images/pastor-an-kyunghyuk.jpg',
+  newsletter2: '/images/newsletter-02.jpg', newsletter3: '/images/newsletter-03.jpg', pastor: '/images/pastor-an-kyunghyuk.png',
 }
 
 function App() {
