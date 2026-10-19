@@ -543,12 +543,12 @@ function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { play
         } while (pageToken)
         const ids = [...new Set(playlistItems.map((item) => item.snippet?.resourceId?.videoId).filter((id): id is string => Boolean(id)))]
         if (!ids.length) throw new Error(`공개된 ${worshipName} 영상이 없습니다.`)
-        const videoItems: Array<{ id: string; snippet?: { publishedAt?: string } }> = []
+        const videoItems: Array<{ id: string; snippet?: { publishedAt?: string }; liveStreamingDetails?: { actualStartTime?: string } }> = []
         for (let start = 0; start < ids.length; start += 50) {
-          const videosParams = new URLSearchParams({ part: 'snippet', id: ids.slice(start, start + 50).join(','), key: apiKey })
+          const videosParams = new URLSearchParams({ part: 'snippet,liveStreamingDetails', id: ids.slice(start, start + 50).join(','), key: apiKey })
           const videosResponse = await fetch(`https://www.googleapis.com/youtube/v3/videos?${videosParams}`)
           if (!videosResponse.ok) throw new Error(`영상 정보 요청 실패 (${videosResponse.status})`)
-          const videosData = await videosResponse.json() as { items?: Array<{ id: string; snippet?: { publishedAt?: string } }> }
+          const videosData = await videosResponse.json() as { items?: Array<{ id: string; snippet?: { publishedAt?: string }; liveStreamingDetails?: { actualStartTime?: string } }> }
           videoItems.push(...(videosData.items ?? []))
         }
         const byId = new Map(videoItems.map((item) => [item.id, item]))
@@ -559,9 +559,9 @@ function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { play
         }
         const refreshed = ids.flatMap((id, index) => {
           const item = byId.get(id)
-          const publishedAt = item?.snippet?.publishedAt
-          if (!item || !publishedAt) return []
-          const date = dateFor(publishedAt)
+          const sourceDate = item?.liveStreamingDetails?.actualStartTime ?? item?.snippet?.publishedAt
+          if (!item || !sourceDate) return []
+          const date = dateFor(sourceDate)
           return [{ id, index: index + 1, date, title: `${date} ${worshipName} | 안경혁 목사`, thumbnailId: id }]
         }).sort((a, b) => b.date.localeCompare(a.date))
         if (!refreshed.length) throw new Error('표시할 수 있는 공개 영상 정보를 찾지 못했습니다.')

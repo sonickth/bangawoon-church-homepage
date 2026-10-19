@@ -53,7 +53,7 @@ npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage --pro
 
 카테고리 값: `sermons`, `bulletin`, `notices`, `calendar`, `gallery`, `community`, `nextgen`, `prayer`.
 
-말씀과 예배 메뉴의 `주일예배`와 `수요예배` 화면은 각각 반가운교회 YouTube의 해당 재생목록을 YouTube Data API로 읽어옵니다. 업로드 날짜와 썸네일을 표시하고, 새 영상은 화면 진입 시와 화면을 열어둔 동안 5분 간격으로 다시 확인합니다. 두 화면 모두 10개씩 페이징합니다. 주일예배 API 오류 시에는 확인된 34개 예시 목록을 표시하고, 수요예배는 오류 메시지를 표시합니다. Firestore 게시판도 전체 게시물 수신을 유지하면서 10개씩 페이징합니다.
+말씀과 예배 메뉴의 `주일예배`와 `수요예배` 화면은 각각 반가운교회 YouTube의 해당 재생목록을 YouTube Data API로 읽어옵니다. 날짜는 라이브 방송 영상이면 실제 방송 시작 시각(`liveStreamingDetails.actualStartTime`), 그 외 영상은 게시 시각(`snippet.publishedAt`)을 기준으로 한국 시간으로 표시합니다. 썸네일도 함께 표시하며, 새 영상은 화면 진입 시와 화면을 열어둔 동안 5분 간격으로 다시 확인합니다. 두 화면 모두 10개씩 페이징합니다. 주일예배 API 오류 시에는 확인된 34개 예시 목록을 표시하고, 수요예배는 오류 메시지를 표시합니다. Firestore 게시판도 전체 게시물 수신을 유지하면서 10개씩 페이징합니다.
 
 자동 갱신을 사용하려면 Google Cloud Console에서 **YouTube Data API v3**를 활성화하고 API 키를 발급한 뒤, 웹사이트의 HTTP 리퍼러로 키를 제한하고 API 제한에서 YouTube Data API v3만 허용합니다. `.env.example`을 복사해 `.env.local` 파일을 만들고 `VITE_YOUTUBE_API_KEY`에 키를 입력하세요. `.env.local`은 Git에 커밋되지 않으므로 키를 저장소에 올리지 마세요. 운영 사이트를 빌드하는 서비스에도 같은 이름의 환경 변수를 별도로 등록한 뒤 다시 빌드·배포해야 합니다. 현재 저장소에는 운영 사이트 배포용 GitHub Actions 또는 Firebase Hosting 설정이 포함되어 있지 않습니다. 키 제한이 맞지 않거나 API가 활성화되지 않으면 기존 목록을 표시합니다.
 
