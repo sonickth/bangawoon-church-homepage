@@ -9,6 +9,15 @@ import { ADMIN_EMAIL, auth, db, storage } from './firebase'
 
 type Page = { id: string; title: string; section: string; description: string }
 type MenuGroup = { title: string; items: Page[] }
+type YouTubePlayer = { loadPlaylist: (playlist: { list: string; listType: 'playlist'; index: number }) => void; loadVideoById: (videoId: string) => void; destroy: () => void }
+type YouTubePlayerApi = { Player: new (element: HTMLElement, options: { width: string; height: string; playerVars: Record<string, string | number>; events: { onReady: (event: { target: YouTubePlayer }) => void } }) => YouTubePlayer }
+
+declare global {
+  interface Window {
+    YT?: YouTubePlayerApi
+    onYouTubeIframeAPIReady?: () => void
+  }
+}
 
 const groups: MenuGroup[] = [
   { title: '교회소개', items: [
@@ -19,7 +28,8 @@ const groups: MenuGroup[] = [
     { id: 'location', title: '오시는 길', section: '교회소개', description: '서울시 성북구 성북로4길 52, 411동(근린상가) 3층 3302호에 있습니다.' },
   ] },
   { title: '말씀과 예배', items: [
-    { id: 'sermons', title: '주일설교', section: '말씀과 예배', description: '함께 들은 말씀을 다시 듣고, 삶의 자리에서 천천히 묵상합니다.' },
+    { id: 'sermons', title: '주일예배', section: '말씀과 예배', description: '반가운교회 주일예배 영상을 날짜별로 다시 볼 수 있습니다.' },
+    { id: 'wednesday-worship', title: '수요예배', section: '말씀과 예배', description: '반가운교회 수요예배 영상을 날짜별로 다시 볼 수 있습니다.' },
     { id: 'bulletin', title: '주보', section: '말씀과 예배', description: '매주 예배 순서와 교회 소식을 담은 주보를 모아봅니다.' },
     { id: 'worship', title: '예배안내', section: '말씀과 예배', description: '주일예배와 주중 예배 시간, 예배 장소를 안내합니다.' },
     { id: 'offering', title: '온라인 봉헌', section: '말씀과 예배', description: '온라인으로 봉헌하실 수 있도록 교회 계좌를 안내합니다.' },
@@ -67,7 +77,7 @@ function App() {
   const [loginOpen, setLoginOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [authMessage, setAuthMessage] = useState('')
-  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL
+  const [isAdmin, setIsAdmin] = useState(false)
   const page = allPages.find((item) => item.id === pageId)
   const navigate = (id: string) => {
     history.pushState({}, '', id === 'home' ? location.pathname : `#${id}`)
@@ -84,6 +94,14 @@ function App() {
     setUser(nextUser)
     setAuthReady(true)
   }), [])
+  useEffect(() => {
+    if (!user) { setIsAdmin(false); return }
+    const legacyAdmin = user.email?.trim().toLowerCase() === ADMIN_EMAIL
+    setIsAdmin(legacyAdmin)
+    return onSnapshot(doc(db, 'admins', user.uid), (snapshot) => {
+      setIsAdmin(legacyAdmin || snapshot.data()?.role === 'admin')
+    }, () => setIsAdmin(legacyAdmin))
+  }, [user])
 
   const authenticate = async (mode: 'login' | 'signup', email: string, password: string, name = '', phone = '') => {
     setAuthMessage('')
@@ -173,7 +191,8 @@ function Interior({ page, navigate, user, isAdmin, authReady, onAuthOpen }: { pa
 
 function PageContent({ page, navigate, user, isAdmin, authReady, onAuthOpen }: { page: Page; navigate: (id: string) => void; user: User | null; isAdmin: boolean; authReady: boolean; onAuthOpen: (mode?: 'login' | 'signup') => void }) {
   const [openFaq, setOpenFaq] = useState<number | null>(0)
-  if (page.id === 'sermons') return <SermonsPlaylistPage/>
+  if (page.id === 'sermons') return <SermonsPlaylistPage key={page.id} playlistId={sundayPlaylistId} worshipName="주일예배" fallbackVideos={sundaySermonVideos}/>
+  if (page.id === 'wednesday-worship') return <SermonsPlaylistPage key={page.id} playlistId={wednesdayPlaylistId} worshipName="수요예배" fallbackVideos={[]}/>
   if (boardCategories[page.id]) return <BoardPage page={page} category={boardCategories[page.id]} user={user} isAdmin={isAdmin} authReady={authReady} onAuthOpen={onAuthOpen}/>
   if (page.id === 'bulletin') return <div className="archive-content"><ArchiveHeading eyebrow="WEEKLY BULLETIN" title="주일마다 함께 나누는 예배 안내" note="주보 이미지를 누르면 큰 화면으로 볼 수 있습니다."/><div className="document-grid">{[[images.bulletin1,'주보 1면'],[images.bulletin2,'주보 2면']].map(([src,label]) => <a className="document-card" href={src} target="_blank" rel="noreferrer" key={label}><img src={src} alt={`2026년 10월 18일 ${label}`}/><span>2026.10.18 · {label} <ArrowUpRight size={15}/></span></a>)}</div></div>
   if (page.id === 'history') return <Timeline/>
@@ -202,6 +221,7 @@ type ChurchPost = { id: string; category: string; title: string; body: string; d
 
 function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { page: Page; category: string; user: User | null; isAdmin: boolean; authReady: boolean; onAuthOpen: (mode?: 'login' | 'signup') => void }) {
   const [posts, setPosts] = useState<ChurchPost[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<ChurchPost | null>(null)
@@ -214,6 +234,9 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const canManage = isAdmin || (!!user && memberBoardCategories.has(category))
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(posts.length / pageSize))
+  const pagePosts = posts.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const postsQuery = query(collection(db, 'posts'), where('category', '==', category), orderBy('date', 'desc'))
 
   const refreshPosts = async () => {
@@ -243,6 +266,9 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
       setError(`게시물을 불러오지 못했습니다 (${cause.code}). 다시 조회해 보세요. 계속되면 Firebase 규칙/색인 배포 상태를 확인해 주세요.`)
     })
   }, [category])
+
+  useEffect(() => { setCurrentPage(1) }, [category])
+  useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages) }, [currentPage, totalPages])
 
   const savePost = async (postTitle: string, postDate: string, postBody: string, files: File[], relatedLink: string) => {
     if (!canManage || !user?.email) return
@@ -325,7 +351,7 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
     {canManage && <form className="post-form" onSubmit={createPost}><h3>새 게시물 등록</h3><div className="post-form-grid"><label>제목<input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="게시물 제목"/></label><label>게시 날짜<input required type="date" value={date} onChange={(e) => setDate(e.target.value)}/></label><label className="wide-field">내용<textarea maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="게시물 내용을 입력해 주세요."/></label><label className="attachment-picker"><span>사진 또는 PDF 여러 개 첨부 (최대 10개, 파일당 15MB)</span><input ref={attachmentInput} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(e) => setAttachments(Array.from(e.target.files ?? []))}/>{attachments.length > 0 && <small><ImagePlus size={13}/> {attachments.length}개 선택됨: {attachments.map((file) => file.name).join(', ')}</small>}</label><label>관련 링크(선택)<input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..."/></label></div><button className="pill-button" disabled={saving}>{saving ? '등록 후 목록을 확인하는 중…' : '게시물 등록'} <ArrowRight size={15}/></button></form>}
     {error && <div className="board-error" role="alert"><span>{error}</span><button type="button" onClick={() => void refreshList()} disabled={refreshing}>{refreshing ? '조회 중…' : '다시 조회'}</button></div>}
     <div className="post-list-tools"><span>{posts.length}개 게시물</span><button type="button" onClick={() => void refreshList()} disabled={refreshing}>{refreshing ? '다시 조회 중…' : '목록 다시 조회'}</button></div>
-    {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{canManage ? '위 입력란에서 게시물과 사진을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p>{isAdmin && category === 'bulletin' && <button className="sample-bulletin-button" type="button" disabled={saving} onClick={() => void createSampleBulletin()}>{saving ? '참고 주보 등록 및 목록 확인 중…' : '참고사진의 주보 예시 바로 등록'}</button>}</div> : <div className="post-list">{posts.map((post) => { const postFiles = post.attachments?.length ? post.attachments : post.fileUrl ? [{ url: post.fileUrl, path: post.filePath ?? '', name: post.fileName ?? '첨부 파일', type: post.fileType ?? '' }] : []; const thumbnail = postFiles.find((file) => file.type.startsWith('image/'))?.url ?? post.imageUrl; return <article className="post-card" key={post.id}>{thumbnail && <button className="post-image" onClick={() => setSelected(post)}><img src={thumbnail} alt="첨부 미리보기"/>{postFiles.filter((file) => file.type.startsWith('image/')).length > 1 && <span className="attachment-count">사진 {postFiles.filter((file) => file.type.startsWith('image/')).length}장</span>}</button>}<button className="post-main" onClick={() => setSelected(post)}><time>{post.date}</time><h3>{post.title}</h3><p>{post.body || postFiles.map((file) => file.name).join(', ') || '자세한 내용을 확인하세요.'}</p></button>{canManage && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>})}</div>}
+    {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{canManage ? '위 입력란에서 게시물과 사진을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p>{isAdmin && category === 'bulletin' && <button className="sample-bulletin-button" type="button" disabled={saving} onClick={() => void createSampleBulletin()}>{saving ? '참고 주보 등록 및 목록 확인 중…' : '참고사진의 주보 예시 바로 등록'}</button>}</div> : <><div className="post-list">{pagePosts.map((post) => { const postFiles = post.attachments?.length ? post.attachments : post.fileUrl ? [{ url: post.fileUrl, path: post.filePath ?? '', name: post.fileName ?? '첨부 파일', type: post.fileType ?? '' }] : []; const thumbnail = postFiles.find((file) => file.type.startsWith('image/'))?.url ?? post.imageUrl; return <article className="post-card" key={post.id}>{thumbnail && <button className="post-image" onClick={() => setSelected(post)}><img src={thumbnail} alt="첨부 미리보기"/>{postFiles.filter((file) => file.type.startsWith('image/')).length > 1 && <span className="attachment-count">사진 {postFiles.filter((file) => file.type.startsWith('image/')).length}장</span>}</button>}<button className="post-main" onClick={() => setSelected(post)}><time>{post.date}</time><h3>{post.title}</h3><p>{post.body || postFiles.map((file) => file.name).join(', ') || '자세한 내용을 확인하세요.'}</p></button>{canManage && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>})}</div><nav className="board-pagination" aria-label={`${page.title} 게시물 페이지`}><button type="button" onClick={() => setCurrentPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => setCurrentPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages}>다음</button></nav></>}
     {selected && <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null) }}><article className="post-detail" role="dialog" aria-modal="true" aria-label={selected.title}><button className="post-close" onClick={() => setSelected(null)} aria-label="닫기"><X/></button><time>{selected.date}</time><h2>{selected.title}</h2><p>{selected.body}</p><div className="post-attachments">{(selected.attachments?.length ? selected.attachments : selected.fileUrl ? [{ url: selected.fileUrl, path: selected.filePath ?? '', name: selected.fileName ?? '첨부 파일', type: selected.fileType ?? '' }] : []).map((file) => file.type.startsWith('image/') ? <a key={file.path || file.url} href={file.url} target="_blank" rel="noreferrer" className="post-attachment-image"><img src={file.url} alt={file.name}/><span>{file.name} <ArrowUpRight size={14}/></span></a> : <a className="post-attachment-file" key={file.path || file.url} href={file.url} target="_blank" rel="noreferrer"><BookOpen size={17}/>{file.name}<ArrowUpRight size={14}/></a>)}</div>{selected.linkUrl && <a className="text-link" href={selected.linkUrl} target="_blank" rel="noreferrer">관련 자료 열기 <ArrowUpRight size={15}/></a>}{canManage && <button className="post-delete detail-delete" onClick={() => void removePost(selected)}><Trash2 size={15}/> 게시물 삭제</button>}</article></div>}
   </div>
 }
@@ -463,76 +489,125 @@ function ComingSoon({ page }: { page: Page }) {
   return <div className="coming-content"><div className="empty-icon">{page.id === 'calendar' ? <CalendarDays/> : <BookOpen/>}</div><span>{page.section.toUpperCase()}</span><h2>{page.title} 화면을 준비하고 있습니다.</h2><p>게시할 일정이나 신청 내용을 전달해 주시면 이 화면에 실제 운영 콘텐츠를 구성하겠습니다.</p></div>
 }
 
-type SermonVideo = { id: string; title: string; date: string }
-type SermonFeedResponse = { status?: string; items?: Array<{ title?: string; link?: string; guid?: string; pubDate?: string }> }
+type SermonVideo = { id?: string; index: number; title: string; date: string; thumbnailId?: string }
 
-const fallbackSermonVideos: SermonVideo[] = [
-  { id: '67bO88fXKvY', title: '2026. 10. 18 주일예배 | 안경혁 목사', date: '2026. 10. 18' },
-  { id: 'Blw0d75jCYc', title: '2026. 10. 11 주일예배 | 안경혁 목사', date: '2026. 10. 11' },
+const sundayPlaylistId = 'PL70WiI4S5qc_sa4UKNA_lb-jTFmkqkvXU'
+const wednesdayPlaylistId = 'PL70WiI4S5qc93wq_W4tRoEmdl56VHVTYS'
+const sundaySermonDates = [
+  '2026.10. 18', '2026.10. 11', '2026.10. 04', '2026.09. 27', '2026.09. 20', '2026.09. 13', '2026.09. 06',
+  '2026.08. 30', '2026.08. 23', '2026.08. 09', '2026.08. 02', '2026.07. 26', '2026.07. 19', '2026.07. 12',
+  '2026.07. 05', '2026.06. 28', '2026.06. 21', '2026.06. 14', '2026.06. 07', '2026.05. 31', '2026.05. 24',
+  '2026.05. 17', '2026.05. 10', '2026.05. 03', '2026.04. 26', '2026.04. 19', '2026.04. 12', '2026.04. 05',
+  '2026.03. 29', '2026.03. 22', '2026.03. 15', '2026.03. 08', '2026.03. 01', '2026.02. 22',
 ]
+const sundaySermonVideos: SermonVideo[] = sundaySermonDates.map((date, position) => ({
+  index: position + 1,
+  title: `${date} 주일예배 | 안경혁 목사`,
+  date,
+  ...(position === 0 ? { thumbnailId: 'Wu9OTWTd0o0' } : position === 1 ? { thumbnailId: 'Blw0d75jCYc' } : {}),
+}))
 
-function SermonsPlaylistPage() {
-  const [videos, setVideos] = useState<SermonVideo[]>(fallbackSermonVideos)
-  const [selectedVideoId, setSelectedVideoId] = useState(fallbackSermonVideos[0].id)
+function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { playlistId: string; worshipName: string; fallbackVideos: SermonVideo[] }) {
+  const [videos, setVideos] = useState(fallbackVideos)
+  const [selectedIndex, setSelectedIndex] = useState(fallbackVideos[0]?.index ?? 0)
   const [currentPage, setCurrentPage] = useState(1)
-  const [feedStatus, setFeedStatus] = useState('')
-  const livePlaylistUrl = 'https://www.youtube.com/playlist?list=UULVuDEXkGt2YDc2rp4ZATt8ow'
-
-  useEffect(() => {
-    const cacheKey = 'bangawoon-sunday-sermon-feed-v1'
-    const cached = localStorage.getItem(cacheKey)
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached) as { savedAt: number; videos: SermonVideo[] }
-        if (Date.now() - parsed.savedAt < 6 * 60 * 60 * 1000 && parsed.videos.length) setVideos(parsed.videos)
-      } catch { localStorage.removeItem(cacheKey) }
-    }
-
-    const callbackName = `bangawoonSermonFeed${Date.now()}`
-    const globalWindow = window as unknown as Record<string, ((data: SermonFeedResponse) => void) | undefined>
-    const script = document.createElement('script')
-    let settled = false
-    const timeout = window.setTimeout(() => finish(false), 12000)
-    const finish = (success: boolean) => {
-      if (settled) return
-      settled = true
-      window.clearTimeout(timeout)
-      delete globalWindow[callbackName]
-      script.remove()
-      if (!success) setFeedStatus('재생목록을 새로 불러오지 못해 확인된 영상을 표시합니다.')
-    }
-    globalWindow[callbackName] = (data) => {
-      const parsedVideos = (data.items ?? []).flatMap((item) => {
-        const title = item.title ?? ''
-        if (!/주일\s*예배/.test(title)) return []
-        const videoId = item.link?.match(/[?&]v=([^&]+)/)?.[1] ?? item.guid?.match(/[?&]v=([^&]+)/)?.[1]
-        const dateMatch = title.match(/(20\d{2})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/)
-        if (!videoId || !dateMatch) return []
-        const date = `${dateMatch[1]}. ${dateMatch[2].padStart(2, '0')}. ${dateMatch[3].padStart(2, '0')}`
-        return [{ id: videoId, date, title: `${date} 주일예배 | 안경혁 목사` }]
-      })
-      const uniqueVideos = Array.from(new Map(parsedVideos.map((video) => [video.date, video])).values())
-        .sort((a, b) => b.date.localeCompare(a.date))
-      if (data.status === 'ok' && uniqueVideos.length) {
-        setVideos(uniqueVideos)
-        setSelectedVideoId((current) => uniqueVideos.some((video) => video.id === current) ? current : uniqueVideos[0].id)
-        setCurrentPage(1)
-        localStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), videos: uniqueVideos }))
-        setFeedStatus('')
-        finish(true)
-      } else finish(false)
-    }
-    script.onerror = () => finish(false)
-    const feedUrl = 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULVuDEXkGt2YDc2rp4ZATt8ow'
-    script.src = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&callback=${callbackName}`
-    document.body.appendChild(script)
-    return () => { window.clearTimeout(timeout); delete globalWindow[callbackName]; script.remove() }
-  }, [])
+  const [playerReady, setPlayerReady] = useState(false)
+  const [listMessage, setListMessage] = useState('YouTube 재생목록을 확인하고 있습니다.')
+  const playerContainerRef = useRef<HTMLDivElement>(null)
+  const playerRef = useRef<YouTubePlayer | null>(null)
   const pageSize = 10
   const totalPages = Math.max(1, Math.ceil(videos.length / pageSize))
   const pageVideos = videos.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-  const selectedVideo = videos.find((video) => video.id === selectedVideoId)
-  return <div className="sermons-page"><ArchiveHeading eyebrow="SUNDAY WORSHIP · YOUTUBE LIVE" title="날짜별 주일예배 다시보기" note="주일예배 영상을 최신 날짜순으로 확인하세요. 목록에서 제목을 누르면 선택한 영상이 재생됩니다."/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> YOUTUBE LIVE ARCHIVE</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube에서 전체 목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column">{selectedVideo && <><iframe className="sermon-live-player" src={`https://www.youtube-nocookie.com/embed/${selectedVideo.id}?rel=0`} title={selectedVideo.title} referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/><div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo.title}</b></div></>}</div><aside className="sermon-video-list"><h2>설교 영상 목록 <span>{videos.length}</span></h2>{feedStatus && <p className="sermon-list-status" role="status">{feedStatus}</p>}{pageVideos.map((video) => <button className={`sermon-video-item${video.id === selectedVideoId ? ' selected' : ''}`} key={video.id} onClick={() => setSelectedVideoId(video.id)} aria-pressed={video.id === selectedVideoId}><img src={`https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`} alt="" loading="lazy"/><span><time>{video.date}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}<nav className="sermon-pagination" aria-label="설교 영상 페이지"><button type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages}>다음</button></nav></aside></div><p className="sermon-live-note">주일예배 재생목록에서 가져온 최신 공개 영상입니다. 한 페이지에 최대 10개를 표시합니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C/streams" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 라이브 탭 열기 <ArrowUpRight size={15}/></a></div>
+  const selectedVideo = videos.find((video) => video.index === selectedIndex) ?? videos[0]
+  const selectedIdRef = useRef<string | undefined>(selectedVideo?.id)
+  const livePlaylistUrl = `https://www.youtube.com/playlist?list=${playlistId}`
+  useEffect(() => { selectedIdRef.current = selectedVideo?.id }, [selectedVideo])
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_YOUTUBE_API_KEY?.trim()
+    if (!apiKey) {
+      setListMessage(fallbackVideos.length ? 'YouTube API 키가 설정되지 않아 저장된 예시 목록을 표시합니다.' : 'YouTube API 키를 설정하면 수요예배 영상을 불러옵니다.')
+      return
+    }
+    const loadPlaylist = async () => {
+      try {
+        const playlistItems: Array<{ snippet?: { resourceId?: { videoId?: string } } }> = []
+        let pageToken: string | undefined
+        do {
+          const params = new URLSearchParams({ part: 'snippet', playlistId, maxResults: '50', key: apiKey })
+          if (pageToken) params.set('pageToken', pageToken)
+          const playlistResponse = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params}`)
+          if (!playlistResponse.ok) throw new Error(`재생목록 요청 실패 (${playlistResponse.status})`)
+          const playlistData = await playlistResponse.json() as { items?: Array<{ snippet?: { resourceId?: { videoId?: string } } }>; nextPageToken?: string }
+          playlistItems.push(...(playlistData.items ?? []))
+          pageToken = playlistData.nextPageToken
+        } while (pageToken)
+        const ids = [...new Set(playlistItems.map((item) => item.snippet?.resourceId?.videoId).filter((id): id is string => Boolean(id)))]
+        if (!ids.length) throw new Error(`공개된 ${worshipName} 영상이 없습니다.`)
+        const videoItems: Array<{ id: string; snippet?: { publishedAt?: string } }> = []
+        for (let start = 0; start < ids.length; start += 50) {
+          const videosParams = new URLSearchParams({ part: 'snippet', id: ids.slice(start, start + 50).join(','), key: apiKey })
+          const videosResponse = await fetch(`https://www.googleapis.com/youtube/v3/videos?${videosParams}`)
+          if (!videosResponse.ok) throw new Error(`영상 정보 요청 실패 (${videosResponse.status})`)
+          const videosData = await videosResponse.json() as { items?: Array<{ id: string; snippet?: { publishedAt?: string } }> }
+          videoItems.push(...(videosData.items ?? []))
+        }
+        const byId = new Map(videoItems.map((item) => [item.id, item]))
+        const dateFor = (publishedAt: string) => {
+          const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(publishedAt))
+          const value = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+          return `${value.year}.${value.month}. ${value.day}`
+        }
+        const refreshed = ids.flatMap((id, index) => {
+          const item = byId.get(id)
+          const publishedAt = item?.snippet?.publishedAt
+          if (!item || !publishedAt) return []
+          const date = dateFor(publishedAt)
+          return [{ id, index: index + 1, date, title: `${date} ${worshipName} | 안경혁 목사`, thumbnailId: id }]
+        }).sort((a, b) => b.date.localeCompare(a.date))
+        if (!refreshed.length) throw new Error('표시할 수 있는 공개 영상 정보를 찾지 못했습니다.')
+        setVideos(refreshed)
+        const retainedVideo = refreshed.find((video) => video.id === selectedIdRef.current) ?? refreshed[0]
+        setSelectedIndex(retainedVideo.index)
+        setCurrentPage(Math.floor((retainedVideo.index - 1) / pageSize) + 1)
+        setListMessage(`${worshipName} 재생목록에서 공개 영상 ${refreshed.length}개를 불러왔습니다.`)
+      } catch (error) {
+        setListMessage(`${error instanceof Error ? error.message : '목록을 불러오지 못했습니다.'} ${fallbackVideos.length ? '저장된 목록을 표시합니다.' : ''}`)
+      }
+    }
+    void loadPlaylist()
+    const refreshTimer = window.setInterval(() => { void loadPlaylist() }, 5 * 60 * 1000)
+    return () => window.clearInterval(refreshTimer)
+  }, [playlistId, worshipName, fallbackVideos])
+  useEffect(() => {
+    let active = true
+    const initializePlayer = () => {
+      if (!active || !window.YT || !playerContainerRef.current || playerRef.current) return
+      playerRef.current = new window.YT.Player(playerContainerRef.current, {
+        width: '100%',
+        height: '100%',
+        playerVars: { listType: 'playlist', list: playlistId },
+        events: { onReady: ({ target }) => { playerRef.current = target; setPlayerReady(true) } },
+      })
+    }
+    if (window.YT) initializePlayer()
+    else {
+      const script = document.querySelector<HTMLScriptElement>('script[data-youtube-iframe-api]') ?? document.createElement('script')
+      if (!script.src) {
+        script.src = 'https://www.youtube.com/iframe_api'
+        script.dataset.youtubeIframeApi = 'true'
+        document.head.appendChild(script)
+      }
+      const previousCallback = window.onYouTubeIframeAPIReady
+      window.onYouTubeIframeAPIReady = () => { previousCallback?.(); initializePlayer() }
+    }
+    return () => { active = false; playerRef.current?.destroy(); playerRef.current = null }
+  }, [playlistId])
+  useEffect(() => {
+    if (!playerReady) return
+    if (selectedVideo.id) playerRef.current?.loadVideoById(selectedVideo.id)
+    else playerRef.current?.loadPlaylist({ list: playlistId, listType: 'playlist', index: selectedIndex - 1 })
+  }, [selectedVideo, selectedIndex, playerReady, playlistId])
+  return <div className="sermons-page"><ArchiveHeading eyebrow={`${worshipName.toUpperCase()} · YOUTUBE PLAYLIST`} title={`날짜별 ${worshipName} 다시보기`} note={`반가운교회 ${worshipName} 재생목록을 날짜순으로 확인하세요. 제목을 누르면 해당 영상부터 재생됩니다.`}/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> {worshipName.toUpperCase()} PLAYLIST</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube 재생목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column"><div ref={playerContainerRef} className="sermon-live-player" aria-label={`선택한 ${worshipName} 영상 플레이어`}/><div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo?.title ?? `${worshipName} 영상 목록을 불러오면 재생할 수 있습니다.`}</b></div></div><aside className="sermon-video-list"><h2>{worshipName} 영상 목록 <span>{videos.length}</span></h2>{pageVideos.map((video) => <button className={`sermon-video-item${video.index === selectedIndex ? ' selected' : ''}`} key={video.id ?? video.index} onClick={() => setSelectedIndex(video.index)} aria-pressed={video.index === selectedIndex}>{video.thumbnailId ? <img src={`https://i.ytimg.com/vi/${video.thumbnailId}/mqdefault.jpg`} alt="" loading="lazy"/> : <span className="sermon-video-thumb"><Youtube size={20}/></span>}<span><time>{video.date}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}{videos.length > 0 && <nav className="sermon-pagination" aria-label={`${worshipName} 영상 페이지`}><button type="button" onClick={() => { const page = Math.max(1, currentPage - 1); setCurrentPage(page); setSelectedIndex(videos[(page - 1) * pageSize]?.index ?? videos[0].index) }} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => { const page = Math.min(totalPages, currentPage + 1); setCurrentPage(page); setSelectedIndex(videos[(page - 1) * pageSize]?.index ?? videos[0].index) }} disabled={currentPage === totalPages}>다음</button></nav>}</aside></div><p className="sermon-live-note">{listMessage} 자동 갱신은 5분마다 확인합니다. 한 페이지에 10개씩 보여줍니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 채널 열기 <ArrowUpRight size={15}/></a></div>
 }
 
 

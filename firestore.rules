@@ -2,8 +2,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAdmin() {
-      return request.auth != null
-        && request.auth.token.email == 'sonickthgmal@gmail.com';
+      return request.auth != null && (
+        request.auth.token.email == 'sonickthgmal@gmail.com'
+        || (exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+          && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function mayManageCategory(category) {
@@ -58,6 +61,11 @@ service cloud.firestore {
         && request.resource.data.phoneNumber.size() <= 20
         && request.resource.data.createdAt == request.time;
       allow update, delete: if false;
+    }
+
+    match /admins/{userId} {
+      allow get: if request.auth != null && request.auth.uid == userId;
+      allow list, create, update, delete: if false;
     }
 
     match /{document=**} {

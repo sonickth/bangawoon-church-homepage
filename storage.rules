@@ -2,8 +2,11 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function isAdmin() {
-      return request.auth != null
-        && request.auth.token.email == 'sonickthgmal@gmail.com';
+      return request.auth != null && (
+        request.auth.token.email == 'sonickthgmal@gmail.com'
+        || (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+          && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function canManage(category, uid) {
