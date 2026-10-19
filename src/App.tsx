@@ -134,9 +134,9 @@ function App() {
   const openAuth = (mode: 'login' | 'signup' = 'login') => { setAuthMode(mode); setAuthMessage(''); setLoginOpen(true) }
 
   return <>
-    <div className="topline"><img src="/pck-ci.png" alt="대한예수교장로회"/><span>하나님과 사람을 반갑게 맞이하는 교회</span><button className="top-search-button" onClick={() => setSearchOpen(true)} aria-label="사이트 검색"><Search size={14}/> 검색</button></div>
+    <div className="topline"><img src="/pck-ci.png?v=2" alt="대한예수교장로회"/><span>하나님과 사람을 반갑게 맞이하는 교회</span><button className="top-search-button" onClick={() => setSearchOpen(true)} aria-label="사이트 검색"><Search size={14}/> 검색</button></div>
     <header className="header">
-      <button className="brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png" alt="반가운교회" /></button>
+      <button className="brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png?v=2" alt="반가운교회" /></button>
       <nav className="desktop-nav">{groups.map((group) => <div className="nav-group" key={group.title}><button onClick={() => navigate(group.items[0].id)}>{group.title}<ChevronDown size={13}/></button><div className="dropdown">{group.items.map((item) => <button key={item.id} onClick={() => navigate(item.id)}>{item.title}</button>)}</div></div>)}</nav>
       <button className="visit-button" onClick={() => navigate('location')}>예배와 방문 안내 <ArrowUpRight size={15}/></button>
       <div className="header-auth">{user ? <><span>{user.displayName || (isAdmin ? '관리자' : '회원')}</span>{isAdmin && <b className="admin-role-label">관리자</b>}<button onClick={() => { void signOut(auth); setAuthMessage('로그아웃되었습니다.') }}><LogOut size={13}/> 로그아웃</button></> : <><button onClick={() => openAuth('login')}><LogIn size={14}/> 로그인</button><button onClick={() => openAuth('signup')}>회원가입</button></>}</div>
@@ -608,7 +608,7 @@ function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { play
 
 
 function Footer({ navigate }: { navigate: (id: string) => void }) {
-  return <footer className="footer"><div className="footer-main"><button className="footer-brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png" alt="반가운교회"/></button><p>하나님과의 사귐으로 변화되고<br/>함께 하나님 나라를 살아가는 공동체</p><div className="footer-address"><MapPin size={15}/>서울시 성북구 성북로4길 52, 411동(근린상가) 3층 3302호</div><div className="footer-social"><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer"><Instagram size={17}/></a><a href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={18}/></a></div></div><div className="footer-bottom"><span>© 2026 반가운교회. All rights reserved.</span><div className="footer-actions"><button onClick={() => navigate('location')}>오시는 길 <ArrowRight size={13}/></button></div></div></footer>
+  return <footer className="footer"><div className="footer-main"><button className="footer-brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png?v=2" alt="반가운교회"/></button><p>하나님과의 사귐으로 변화되고<br/>함께 하나님 나라를 살아가는 공동체</p><div className="footer-address"><MapPin size={15}/>서울시 성북구 성북로4길 52, 411동(근린상가) 3층 3302호</div><div className="footer-social"><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer"><Instagram size={17}/></a><a href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={18}/></a></div></div><div className="footer-bottom"><span>© 2026 반가운교회. All rights reserved.</span><div className="footer-actions"><button onClick={() => navigate('location')}>오시는 길 <ArrowRight size={13}/></button></div></div></footer>
 }
 
 export default App
