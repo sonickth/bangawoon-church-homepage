@@ -18,3 +18,4 @@ export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
 export const ADMIN_EMAIL = 'sonickthgmal@gmail.com'
+export const YOUTUBE_API_KEY = firebaseConfig.apiKey

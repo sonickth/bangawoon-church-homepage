@@ -5,7 +5,7 @@ import type { User } from 'firebase/auth'
 import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Copy, Instagram, MapPin, Menu as MenuIcon, Search, X, Youtube, LogIn, LogOut, Trash2, ImagePlus } from 'lucide-react'
-import { ADMIN_EMAIL, auth, db, storage } from './firebase'
+import { ADMIN_EMAIL, auth, db, storage, YOUTUBE_API_KEY } from './firebase'
 
 type Page = { id: string; title: string; section: string; description: string }
 type MenuGroup = { title: string; items: Page[] }
@@ -121,7 +121,7 @@ function App() {
       <button className="brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png" alt="반가운교회" /></button>
       <nav className="desktop-nav">{groups.map((group) => <div className="nav-group" key={group.title}><button onClick={() => navigate(group.items[0].id)}>{group.title}<ChevronDown size={13}/></button><div className="dropdown">{group.items.map((item) => <button key={item.id} onClick={() => navigate(item.id)}>{item.title}</button>)}</div></div>)}</nav>
       <button className="visit-button" onClick={() => navigate('location')}>예배와 방문 안내 <ArrowUpRight size={15}/></button>
-      <div className="header-auth">{user ? <><span>{user.displayName || (isAdmin ? '관리자' : '회원')}</span><button onClick={() => { void signOut(auth); setAuthMessage('로그아웃되었습니다.') }}><LogOut size={13}/> 로그아웃</button></> : <><button onClick={() => openAuth('login')}><LogIn size={14}/> 로그인</button><button onClick={() => openAuth('signup')}>회원가입</button></>}</div>
+      <div className="header-auth">{user ? <><span>{user.displayName || (isAdmin ? '관리자' : '회원')}</span>{isAdmin && <b className="admin-role-label">관리자</b>}<button onClick={() => { void signOut(auth); setAuthMessage('로그아웃되었습니다.') }}><LogOut size={13}/> 로그아웃</button></> : <><button onClick={() => openAuth('login')}><LogIn size={14}/> 로그인</button><button onClick={() => openAuth('signup')}>회원가입</button></>}</div>
       <button className="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)} aria-label="메뉴 열기">{mobileOpen ? <X/> : <MenuIcon/>}</button>
     </header>
     {mobileOpen && <div className="mobile-nav">{groups.map((group) => <div key={group.title}><p>{group.title}</p>{group.items.map((item) => <button key={item.id} onClick={() => navigate(item.id)}>{item.title}<ArrowRight size={14}/></button>)}</div>)}</div>}
@@ -179,7 +179,7 @@ function PageContent({ page, navigate, user, isAdmin, authReady, onAuthOpen }: {
   if (page.id === 'history') return <Timeline/>
   if (page.id === 'gallery') return <Gallery/>
   if (page.id === 'notices') return <NewsletterArchive/>
-  if (page.id === 'community-story' || page.id === 'prayer-share' || page.id === 'prayer') return <CommunityPage page={page}/>
+  if (page.id === 'community' || page.id === 'community-story' || page.id === 'prayer-share' || page.id === 'prayer') return <CommunityPage page={page}/>
   if (page.id === 'worship') return <div className="worship-page"><div className="service-list large"><Service day="매주 주일" title="주일예배" time="오전 11:00"/><Service day="화–금" title="새벽예배" time="오전 05:30"/><Service day="매주 금요일" title="금요기도회" time="오후 08:30"/></div><div className="worship-page-photo"><img src={images.interior} alt="반가운교회 예배 공간"/><div><span>WORSHIP TOGETHER</span><b>처음 오시는 분도<br/>편안히 함께 예배드려요.</b></div></div><button className="text-link" onClick={() => navigate('location')}>예배 장소와 오시는 길 <ArrowRight size={16}/></button></div>
   if (page.id === 'offering') return <OfferingPage/>
   if (page.id === 'location') return <div className="location-layout"><div className="location-card"><MapPin size={22}/><div><span className="eyebrow"><i/> FIND US</span><h2>반가운교회</h2><p>서울시 성북구 성북로4길 52<br/>411동(근린상가) 3층 3302호</p><a href="https://map.naver.com/p/search/%ED%95%98%EB%82%98%ED%83%81%EA%B5%AC%ED%81%B4%EB%9F%BD%20%EC%84%9C%EC%9A%B8%20%EC%84%B1%EB%B6%81%EA%B5%AC%20%EC%84%B1%EB%B6%81%EB%A1%9C4%EA%B8%B8%2052" target="_blank" rel="noreferrer" className="text-link">네이버 지도로 길찾기 <ArrowUpRight size={16}/></a></div></div><iframe className="church-map" title="하나탁구클럽이 있는 건물의 반가운교회 위치 지도" src="https://maps.google.com/maps?q=%ED%95%98%EB%82%98%ED%83%81%EA%B5%AC%ED%81%B4%EB%9F%BD%20%EC%84%9C%EC%9A%B8%20%EC%84%B1%EB%B6%81%EA%B5%AC%20%EC%84%B1%EB%B6%81%EB%A1%9C4%EA%B8%B8%2052%20%EC%A7%80%ED%95%981%EC%B8%B5&z=18&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen/></div>
@@ -394,6 +394,7 @@ function NewsletterArchive() {
 }
 
 function CommunityPage({ page }: { page: Page }) {
+  if (page.id === 'community') return <div className="community-intro"><span className="eyebrow"><i/> LIFE TOGETHER</span><h2>하나님과 사귀며<br/>서로의 삶을 나눕니다.</h2><p>반가운교회 공동체는 함께 하나님과의 사귐을 갈망하고 영적인 성장을 추구합니다. 말씀과 기도 안에서 진실하게 삶을 나누며, 있는 모습 그대로 서로 사랑하고 돌봅니다.</p><p>한 사람의 마음에서 시작된 변화가 가정과 일터, 이웃과 세상으로 흘러가도록 함께 하나님 나라를 살아갑니다.</p><div className="content-tags"><span>말씀 안에서</span><span>진실한 나눔</span><span>서로 사랑하기</span><span>함께 자라기</span></div></div>
   const isPrayer = page.id === 'prayer-share' || page.id === 'prayer'
   return <div className="community-feature"><div className="community-feature-image"><img src={isPrayer ? images.prayer : images.sharing} alt={isPrayer ? '기도 모임 나눔' : '설교 후 말씀 나눔'}/><span>{isPrayer ? 'PRAYER · 2026.09.20' : 'FELLOWSHIP · 2026.09.26'}</span></div><div><span className="eyebrow"><i/> {isPrayer ? 'PRAY TOGETHER' : 'LIFE TOGETHER'}</span><h2>{isPrayer ? <>함께 기도하고,<br/>서로를 품습니다.</> : <>말씀을 나누고,<br/>삶을 나눕니다.</>}</h2><p>{isPrayer ? '기도 모임에서 서로의 마음을 나누고 함께 기도합니다. 기도 제목은 기도 나눔 게시판에서 확인하실 수 있습니다.' : '예배 후 나눔과 교제의 순간을 사진과 이야기로 기록합니다. 작은 만남이 쌓여 공동체의 이야기가 됩니다.'}</p><span className="content-note">교회가 함께 예배하고 나눈 순간을 사진으로 담았습니다.</span></div></div>
 }
@@ -426,7 +427,7 @@ function OfferingPage() {
       setCopied(false)
     }
   }
-  return <div className="offering-page"><ArchiveHeading eyebrow="ONLINE OFFERING" title="마음과 정성을 함께 나눕니다" note="온라인으로 봉헌하실 수 있도록 교회 계좌를 안내합니다. 보내주신 정성은 반가운교회의 사역과 하나님 나라를 위해 사용됩니다."/><section className="offering-account"><div className="offering-mark"><BookOpen size={23}/></div><span>WOORI BANK · 우리은행</span><h2>반가운교회</h2><div className="offering-number"><b>{accountNumber}</b><button onClick={() => void copyAccount()} aria-label="계좌번호 복사">{copied ? '복사 완료' : <><Copy size={15}/> 계좌번호 복사</>}</button></div><p>예금주 <b>반가운교회</b></p></section><p className="offering-note">봉헌 관련 문의가 있으시면 교회로 문의해 주세요. 보내실 때 성함이나 봉헌 항목을 함께 기재하실 수 있습니다.</p></div>
+  return <div className="offering-page"><ArchiveHeading eyebrow="ONLINE OFFERING" title="마음과 정성을 함께 나눕니다" note="온라인으로 봉헌하실 수 있도록 교회 계좌를 안내합니다. 보내주신 정성은 반가운교회의 사역과 하나님 나라를 위해 사용됩니다."/><section className="offering-account"><div className="offering-mark"><BookOpen size={23}/></div><span>WOORI BANK · 우리은행</span><h2>반가운교회</h2><div className="offering-number"><strong>우리은행</strong><b>{accountNumber}</b><button onClick={() => void copyAccount()} aria-label="계좌번호 복사">{copied ? '복사 완료' : <><Copy size={15}/> 계좌번호 복사</>}</button></div><p>예금주 <b>반가운교회</b></p></section><p className="offering-note">봉헌 관련 문의가 있으시면 교회로 문의해 주세요. 보내실 때 성함이나 봉헌 항목을 함께 기재하실 수 있습니다.</p></div>
 }
 
 function NewcomerPage() {
@@ -463,8 +464,34 @@ function ComingSoon({ page }: { page: Page }) {
 }
 
 function SermonsPage() {
+  const [videos, setVideos] = useState<Array<{ id: string; title: string; publishedAt: string; thumbnail: string }>>([])
+  const [selectedVideoId, setSelectedVideoId] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const livePlaylistUrl = 'https://www.youtube.com/playlist?list=UULVuDEXkGt2YDc2rp4ZATt8ow'
-  return <div className="sermons-page"><ArchiveHeading eyebrow="SUNDAY WORSHIP · YOUTUBE LIVE" title="날짜별 주일예배 다시보기" note="반가운교회 YouTube 라이브 다시보기 목록을 최신 날짜순으로 연결했습니다. 목록에서 날짜와 ‘주일예배’가 표시된 영상을 선택해 재생하세요."/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> YOUTUBE LIVE ARCHIVE</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube에서 날짜별 목록 보기 <ArrowUpRight size={15}/></a></div><iframe className="sermon-live-player" src="https://www.youtube-nocookie.com/embed/videoseries?list=UULVuDEXkGt2YDc2rp4ZATt8ow&rel=0" title="반가운교회 주일예배 라이브 다시보기" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/><p className="sermon-live-note">재생목록은 YouTube 채널의 공개 라이브 영상을 기준으로 갱신됩니다. 영상 제목의 날짜를 확인해 원하는 주일예배를 선택해 주세요.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C/streams" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 라이브 탭 열기 <ArrowUpRight size={15}/></a></div>
+  useEffect(() => {
+    let active = true
+    const params = new URLSearchParams({ part: 'snippet,contentDetails', maxResults: '50', playlistId: 'UULVuDEXkGt2YDc2rp4ZATt8ow', key: YOUTUBE_API_KEY })
+    void fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`).then(async (response) => {
+      if (!response.ok) throw new Error('YouTube 목록 조회 실패')
+      return response.json() as Promise<{ items?: Array<{ snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } }; resourceId?: { videoId?: string } }; contentDetails?: { videoId?: string } }> }>
+    }).then((data) => {
+      if (!active) return
+      const allVideos = (data.items ?? []).map((item) => ({ id: item.contentDetails?.videoId ?? item.snippet?.resourceId?.videoId ?? '', title: item.snippet?.title ?? '주일예배', publishedAt: item.snippet?.publishedAt ?? '', thumbnail: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '' })).filter((video) => video.id && video.title !== 'Private video' && video.title !== 'Deleted video')
+      const sermons = allVideos.filter((video) => /주일\s*예배/i.test(video.title))
+      const list = sermons.length ? sermons : allVideos
+      setVideos(list)
+      setSelectedVideoId(list[0]?.id ?? '')
+      setLoading(false)
+    }).catch(() => {
+      if (!active) return
+      setLoadError(true)
+      setLoading(false)
+    })
+    return () => { active = false }
+  }, [])
+  const selectedVideo = videos.find((video) => video.id === selectedVideoId)
+  return <div className="sermons-page"><ArchiveHeading eyebrow="SUNDAY WORSHIP · YOUTUBE LIVE" title="날짜별 주일예배 다시보기" note="최신순 영상 목록에서 날짜별 주일예배를 선택하면 이 화면에서 바로 재생됩니다."/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> YOUTUBE LIVE ARCHIVE</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube에서 전체 목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column">{selectedVideoId ? <iframe className="sermon-live-player" src={`https://www.youtube-nocookie.com/embed/${selectedVideoId}?rel=0`} title={selectedVideo?.title ?? '반가운교회 주일예배 다시보기'} referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/> : loadError ? <iframe className="sermon-live-player" src="https://www.youtube-nocookie.com/embed/videoseries?list=UULVuDEXkGt2YDc2rp4ZATt8ow&rel=0" title="반가운교회 주일예배 전체 재생목록" referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/> : <div className="sermon-player-empty">{loading ? '주일예배 영상을 불러오는 중입니다.' : '등록된 공개 영상이 없습니다.'}</div>}{selectedVideo && <div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo.title}</b></div>}</div><aside className="sermon-video-list"><h2>설교 영상 목록 <span>{videos.length}</span></h2>{loading && <p className="sermon-list-status">YouTube에서 영상을 불러오고 있습니다.</p>}{loadError && <p className="sermon-list-status">영상 목록을 불러오지 못했습니다. 플레이어에서 재생목록을 선택해 주세요.</p>}{!loading && !loadError && videos.length === 0 && <p className="sermon-list-status">등록된 공개 영상이 없습니다.</p>}{videos.map((video) => <button className={`sermon-video-item${video.id === selectedVideoId ? ' selected' : ''}`} key={video.id} onClick={() => setSelectedVideoId(video.id)} aria-pressed={video.id === selectedVideoId}>{video.thumbnail && <img src={video.thumbnail} alt="" loading="lazy"/>}<span><time>{video.publishedAt ? new Date(video.publishedAt).toLocaleDateString('ko-KR') : '주일예배'}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}</aside></div><p className="sermon-live-note">영상 목록은 반가운교회 YouTube 라이브 아카이브에서 가져옵니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C/streams" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 라이브 탭 열기 <ArrowUpRight size={15}/></a></div>
 }
 
 function Footer({ navigate }: { navigate: (id: string) => void }) {
