@@ -30,6 +30,7 @@ const groups: MenuGroup[] = [
   { title: '말씀과 예배', items: [
     { id: 'sermons', title: '주일예배', section: '말씀과 예배', description: '반가운교회 주일예배 영상을 날짜별로 다시 볼 수 있습니다.' },
     { id: 'wednesday-worship', title: '수요예배', section: '말씀과 예배', description: '반가운교회 수요예배 영상을 날짜별로 다시 볼 수 있습니다.' },
+    { id: 'dawn-worship', title: '새벽예배', section: '말씀과 예배', description: '반가운교회 새벽예배 영상을 날짜별로 다시 볼 수 있습니다.' },
     { id: 'bulletin', title: '주보', section: '말씀과 예배', description: '매주 예배 순서와 교회 소식을 담은 주보를 모아봅니다.' },
     { id: 'worship', title: '예배안내', section: '말씀과 예배', description: '주일예배와 주중 예배 시간, 예배 장소를 안내합니다.' },
     { id: 'offering', title: '온라인 봉헌', section: '말씀과 예배', description: '온라인으로 봉헌하실 수 있도록 교회 계좌를 안내합니다.' },
@@ -193,6 +194,7 @@ function PageContent({ page, navigate, user, isAdmin, authReady, onAuthOpen }: {
   const [openFaq, setOpenFaq] = useState<number | null>(0)
   if (page.id === 'sermons') return <SermonsPlaylistPage key={page.id} playlistId={sundayPlaylistId} worshipName="주일예배" fallbackVideos={sundaySermonVideos}/>
   if (page.id === 'wednesday-worship') return <SermonsPlaylistPage key={page.id} playlistId={wednesdayPlaylistId} worshipName="수요예배" fallbackVideos={[]}/>
+  if (page.id === 'dawn-worship') return <SermonsPlaylistPage key={page.id} playlistId="" resolvePlaylistTitle="새벽예배" worshipName="새벽예배" fallbackVideos={[]}/>
   if (boardCategories[page.id]) return <BoardPage page={page} category={boardCategories[page.id]} user={user} isAdmin={isAdmin} authReady={authReady} onAuthOpen={onAuthOpen}/>
   if (page.id === 'bulletin') return <div className="archive-content"><ArchiveHeading eyebrow="WEEKLY BULLETIN" title="주일마다 함께 나누는 예배 안내" note="주보 이미지를 누르면 큰 화면으로 볼 수 있습니다."/><div className="document-grid">{[[images.bulletin1,'주보 1면'],[images.bulletin2,'주보 2면']].map(([src,label]) => <a className="document-card" href={src} target="_blank" rel="noreferrer" key={label}><img src={src} alt={`2026년 10월 18일 ${label}`}/><span>2026.10.18 · {label} <ArrowUpRight size={15}/></span></a>)}</div></div>
   if (page.id === 'history') return <Timeline/>
@@ -493,6 +495,7 @@ type SermonVideo = { id?: string; index: number; title: string; date: string; th
 
 const sundayPlaylistId = 'PL70WiI4S5qc_sa4UKNA_lb-jTFmkqkvXU'
 const wednesdayPlaylistId = 'PL70WiI4S5qc93wq_W4tRoEmdl56VHVTYS'
+const churchYoutubeChannelId = 'UCuDEXkGt2YDc2rp4ZATt8ow'
 const sundaySermonDates = [
   '2026.10. 18', '2026.10. 11', '2026.10. 04', '2026.09. 27', '2026.09. 20', '2026.09. 13', '2026.09. 06',
   '2026.08. 30', '2026.08. 23', '2026.08. 09', '2026.08. 02', '2026.07. 26', '2026.07. 19', '2026.07. 12',
@@ -507,12 +510,13 @@ const sundaySermonVideos: SermonVideo[] = sundaySermonDates.map((date, position)
   ...(position === 0 ? { thumbnailId: 'Wu9OTWTd0o0' } : position === 1 ? { thumbnailId: 'Blw0d75jCYc' } : {}),
 }))
 
-function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { playlistId: string; worshipName: string; fallbackVideos: SermonVideo[] }) {
+function SermonsPlaylistPage({ playlistId, resolvePlaylistTitle, worshipName, fallbackVideos }: { playlistId: string; resolvePlaylistTitle?: string; worshipName: string; fallbackVideos: SermonVideo[] }) {
   const [videos, setVideos] = useState(fallbackVideos)
   const [selectedIndex, setSelectedIndex] = useState(fallbackVideos[0]?.index ?? 0)
   const [currentPage, setCurrentPage] = useState(1)
+  const [activePlaylistId, setActivePlaylistId] = useState(playlistId)
   const [playerReady, setPlayerReady] = useState(false)
-  const [listMessage, setListMessage] = useState('YouTube 재생목록을 확인하고 있습니다.')
+  const [listMessage, setListMessage] = useState(`${worshipName} 재생목록을 확인하고 있습니다.`)
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YouTubePlayer | null>(null)
   const pageSize = 10
@@ -520,20 +524,38 @@ function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { play
   const pageVideos = videos.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const selectedVideo = videos.find((video) => video.index === selectedIndex) ?? videos[0]
   const selectedIdRef = useRef<string | undefined>(selectedVideo?.id)
-  const livePlaylistUrl = `https://www.youtube.com/playlist?list=${playlistId}`
+  const livePlaylistUrl = activePlaylistId ? `https://www.youtube.com/playlist?list=${activePlaylistId}` : 'https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C/playlists'
   useEffect(() => { selectedIdRef.current = selectedVideo?.id }, [selectedVideo])
   useEffect(() => {
     const apiKey = import.meta.env.VITE_YOUTUBE_API_KEY?.trim()
     if (!apiKey) {
-      setListMessage(fallbackVideos.length ? 'YouTube API 키가 설정되지 않아 저장된 예시 목록을 표시합니다.' : 'YouTube API 키를 설정하면 수요예배 영상을 불러옵니다.')
+      setListMessage(fallbackVideos.length ? 'YouTube API 키가 설정되지 않아 저장된 예시 목록을 표시합니다.' : 'YouTube API 키를 설정하면 예배 영상을 불러옵니다.')
       return
     }
     const loadPlaylist = async () => {
       try {
+        let targetPlaylistId = playlistId
+        if (!targetPlaylistId && resolvePlaylistTitle) {
+          const playlistParams = new URLSearchParams({ part: 'snippet', channelId: churchYoutubeChannelId, maxResults: '50', key: apiKey })
+          const playlistResponse = await fetch(`https://www.googleapis.com/youtube/v3/playlists?${playlistParams}`)
+          if (!playlistResponse.ok) throw new Error(`재생목록 요청 실패 (${playlistResponse.status})`)
+          const playlistData = await playlistResponse.json() as { items?: Array<{ id: string; snippet?: { title?: string } }> }
+          const matchingPlaylist = playlistData.items?.find((item) => item.snippet?.title?.trim() === resolvePlaylistTitle)
+          if (!matchingPlaylist) {
+            setVideos([])
+            setSelectedIndex(0)
+            setCurrentPage(1)
+            setListMessage(`YouTube 채널에서 '${resolvePlaylistTitle}' 재생목록을 찾지 못했습니다. 공개 재생목록으로 설정하면 자동으로 연결됩니다.`)
+            return
+          }
+          targetPlaylistId = matchingPlaylist.id
+          setActivePlaylistId(targetPlaylistId)
+        }
+        if (!targetPlaylistId) throw new Error(`${worshipName} 재생목록을 확인할 수 없습니다.`)
         const playlistItems: Array<{ snippet?: { resourceId?: { videoId?: string } } }> = []
         let pageToken: string | undefined
         do {
-          const params = new URLSearchParams({ part: 'snippet', playlistId, maxResults: '50', key: apiKey })
+          const params = new URLSearchParams({ part: 'snippet', playlistId: targetPlaylistId, maxResults: '50', key: apiKey })
           if (pageToken) params.set('pageToken', pageToken)
           const playlistResponse = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params}`)
           if (!playlistResponse.ok) throw new Error(`재생목록 요청 실패 (${playlistResponse.status})`)
@@ -542,7 +564,13 @@ function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { play
           pageToken = playlistData.nextPageToken
         } while (pageToken)
         const ids = [...new Set(playlistItems.map((item) => item.snippet?.resourceId?.videoId).filter((id): id is string => Boolean(id)))]
-        if (!ids.length) throw new Error(`공개된 ${worshipName} 영상이 없습니다.`)
+        if (!ids.length) {
+          setVideos([])
+          setSelectedIndex(0)
+          setCurrentPage(1)
+          setListMessage(`${worshipName} 재생목록을 확인했습니다. 아직 공개된 영상이 없으며, 영상이 추가되면 자동으로 표시됩니다.`)
+          return
+        }
         const videoItems: Array<{ id: string; snippet?: { publishedAt?: string }; liveStreamingDetails?: { actualStartTime?: string } }> = []
         for (let start = 0; start < ids.length; start += 50) {
           const videosParams = new URLSearchParams({ part: 'snippet,liveStreamingDetails', id: ids.slice(start, start + 50).join(','), key: apiKey })
@@ -577,15 +605,15 @@ function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { play
     void loadPlaylist()
     const refreshTimer = window.setInterval(() => { void loadPlaylist() }, 5 * 60 * 1000)
     return () => window.clearInterval(refreshTimer)
-  }, [playlistId, worshipName, fallbackVideos])
+  }, [playlistId, resolvePlaylistTitle, worshipName, fallbackVideos])
   useEffect(() => {
     let active = true
     const initializePlayer = () => {
-      if (!active || !window.YT || !playerContainerRef.current || playerRef.current) return
+      if (!active || !activePlaylistId || !window.YT || !playerContainerRef.current || playerRef.current) return
       playerRef.current = new window.YT.Player(playerContainerRef.current, {
         width: '100%',
         height: '100%',
-        playerVars: { listType: 'playlist', list: playlistId, origin: window.location.origin, autoplay: 0 },
+        playerVars: { listType: 'playlist', list: activePlaylistId, origin: window.location.origin, autoplay: 0 },
         events: { onReady: ({ target }) => { playerRef.current = target; setPlayerReady(true) } },
       })
     }
@@ -601,7 +629,7 @@ function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { play
       window.onYouTubeIframeAPIReady = () => { previousCallback?.(); initializePlayer() }
     }
     return () => { active = false; playerRef.current?.destroy(); playerRef.current = null }
-  }, [playlistId])
+  }, [activePlaylistId])
   return <div className="sermons-page"><ArchiveHeading eyebrow={`${worshipName.toUpperCase()} · YOUTUBE PLAYLIST`} title={`날짜별 ${worshipName} 다시보기`} note={`반가운교회 ${worshipName} 재생목록을 날짜순으로 확인하세요. 영상 항목을 누른 뒤 플레이어의 재생 버튼을 누르면 시청할 수 있습니다.`}/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> {worshipName.toUpperCase()} PLAYLIST</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube 재생목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column"><div ref={playerContainerRef} className="sermon-live-player" aria-label={`선택한 ${worshipName} 영상 플레이어`}/><div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo?.title ?? `${worshipName} 영상 목록을 불러오면 재생할 수 있습니다.`}</b></div></div><aside className="sermon-video-list"><h2>{worshipName} 영상 목록 <span>{videos.length}</span></h2>{pageVideos.map((video) => <button className={`sermon-video-item${video.index === selectedIndex ? ' selected' : ''}`} key={video.id ?? video.index} onClick={() => { setSelectedIndex(video.index); if (!playerReady) return; if (video.id) playerRef.current?.cueVideoById(video.id); else playerRef.current?.cuePlaylist({ list: playlistId, listType: 'playlist', index: video.index - 1 }) }} aria-pressed={video.index === selectedIndex}>{video.thumbnailId ? <img src={`https://i.ytimg.com/vi/${video.thumbnailId}/mqdefault.jpg`} alt="" loading="lazy"/> : <span className="sermon-video-thumb"><Youtube size={20}/></span>}<span><time>{video.date}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}{videos.length > 0 && <nav className="sermon-pagination" aria-label={`${worshipName} 영상 페이지`}><button type="button" onClick={() => { const page = Math.max(1, currentPage - 1); setCurrentPage(page); setSelectedIndex(videos[(page - 1) * pageSize]?.index ?? videos[0].index) }} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => { const page = Math.min(totalPages, currentPage + 1); setCurrentPage(page); setSelectedIndex(videos[(page - 1) * pageSize]?.index ?? videos[0].index) }} disabled={currentPage === totalPages}>다음</button></nav>}</aside></div><p className="sermon-live-note">{listMessage} 자동 갱신은 5분마다 확인합니다. 한 페이지에 10개씩 보여줍니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 채널 열기 <ArrowUpRight size={15}/></a></div>
 }
 
