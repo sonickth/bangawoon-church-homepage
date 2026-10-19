@@ -585,7 +585,7 @@ function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { play
       playerRef.current = new window.YT.Player(playerContainerRef.current, {
         width: '100%',
         height: '100%',
-        playerVars: { listType: 'playlist', list: playlistId },
+        playerVars: { listType: 'playlist', list: playlistId, origin: window.location.origin },
         events: { onReady: ({ target }) => { playerRef.current = target; setPlayerReady(true) } },
       })
     }
@@ -603,7 +603,7 @@ function SermonsPlaylistPage({ playlistId, worshipName, fallbackVideos }: { play
     return () => { active = false; playerRef.current?.destroy(); playerRef.current = null }
   }, [playlistId])
   useEffect(() => {
-    if (!playerReady) return
+    if (!playerReady || !selectedVideo) return
     if (selectedVideo.id) playerRef.current?.loadVideoById(selectedVideo.id)
     else playerRef.current?.loadPlaylist({ list: playlistId, listType: 'playlist', index: selectedIndex - 1 })
   }, [selectedVideo, selectedIndex, playerReady, playlistId])
