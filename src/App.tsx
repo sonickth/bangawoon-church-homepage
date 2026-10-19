@@ -96,6 +96,11 @@ function App() {
     setAuthReady(true)
   }), [])
   useEffect(() => {
+    if (!authMessage || loginOpen) return
+    const dismissTimer = window.setTimeout(() => setAuthMessage(''), 3000)
+    return () => window.clearTimeout(dismissTimer)
+  }, [authMessage, loginOpen])
+  useEffect(() => {
     if (!user) { setIsAdmin(false); return }
     const legacyAdmin = user.email?.trim().toLowerCase() === ADMIN_EMAIL
     setIsAdmin(legacyAdmin)
