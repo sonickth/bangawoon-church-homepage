@@ -5,7 +5,7 @@ import type { User } from 'firebase/auth'
 import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Copy, Instagram, MapPin, Menu as MenuIcon, Search, X, Youtube, LogIn, LogOut, Trash2, ImagePlus } from 'lucide-react'
-import { ADMIN_EMAIL, auth, db, storage, YOUTUBE_API_KEY } from './firebase'
+import { ADMIN_EMAIL, auth, db, storage } from './firebase'
 
 type Page = { id: string; title: string; section: string; description: string }
 type MenuGroup = { title: string; items: Page[] }
@@ -173,7 +173,7 @@ function Interior({ page, navigate, user, isAdmin, authReady, onAuthOpen }: { pa
 
 function PageContent({ page, navigate, user, isAdmin, authReady, onAuthOpen }: { page: Page; navigate: (id: string) => void; user: User | null; isAdmin: boolean; authReady: boolean; onAuthOpen: (mode?: 'login' | 'signup') => void }) {
   const [openFaq, setOpenFaq] = useState<number | null>(0)
-  if (page.id === 'sermons') return <SermonsPage/>
+  if (page.id === 'sermons') return <SermonsPlaylistPage/>
   if (boardCategories[page.id]) return <BoardPage page={page} category={boardCategories[page.id]} user={user} isAdmin={isAdmin} authReady={authReady} onAuthOpen={onAuthOpen}/>
   if (page.id === 'bulletin') return <div className="archive-content"><ArchiveHeading eyebrow="WEEKLY BULLETIN" title="주일마다 함께 나누는 예배 안내" note="주보 이미지를 누르면 큰 화면으로 볼 수 있습니다."/><div className="document-grid">{[[images.bulletin1,'주보 1면'],[images.bulletin2,'주보 2면']].map(([src,label]) => <a className="document-card" href={src} target="_blank" rel="noreferrer" key={label}><img src={src} alt={`2026년 10월 18일 ${label}`}/><span>2026.10.18 · {label} <ArrowUpRight size={15}/></span></a>)}</div></div>
   if (page.id === 'history') return <Timeline/>
@@ -463,36 +463,22 @@ function ComingSoon({ page }: { page: Page }) {
   return <div className="coming-content"><div className="empty-icon">{page.id === 'calendar' ? <CalendarDays/> : <BookOpen/>}</div><span>{page.section.toUpperCase()}</span><h2>{page.title} 화면을 준비하고 있습니다.</h2><p>게시할 일정이나 신청 내용을 전달해 주시면 이 화면에 실제 운영 콘텐츠를 구성하겠습니다.</p></div>
 }
 
-function SermonsPage() {
-  const [videos, setVideos] = useState<Array<{ id: string; title: string; publishedAt: string; thumbnail: string }>>([])
-  const [selectedVideoId, setSelectedVideoId] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
+function SermonsPlaylistPage() {
+  const [selectedVideoId, setSelectedVideoId] = useState('67bO88fXKvY')
+  const [currentPage, setCurrentPage] = useState(1)
   const livePlaylistUrl = 'https://www.youtube.com/playlist?list=UULVuDEXkGt2YDc2rp4ZATt8ow'
-  useEffect(() => {
-    let active = true
-    const params = new URLSearchParams({ part: 'snippet,contentDetails', maxResults: '50', playlistId: 'UULVuDEXkGt2YDc2rp4ZATt8ow', key: YOUTUBE_API_KEY })
-    void fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`).then(async (response) => {
-      if (!response.ok) throw new Error('YouTube 목록 조회 실패')
-      return response.json() as Promise<{ items?: Array<{ snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } }; resourceId?: { videoId?: string } }; contentDetails?: { videoId?: string } }> }>
-    }).then((data) => {
-      if (!active) return
-      const allVideos = (data.items ?? []).map((item) => ({ id: item.contentDetails?.videoId ?? item.snippet?.resourceId?.videoId ?? '', title: item.snippet?.title ?? '주일예배', publishedAt: item.snippet?.publishedAt ?? '', thumbnail: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '' })).filter((video) => video.id && video.title !== 'Private video' && video.title !== 'Deleted video')
-      const sermons = allVideos.filter((video) => /주일\s*예배/i.test(video.title))
-      const list = sermons.length ? sermons : allVideos
-      setVideos(list)
-      setSelectedVideoId(list[0]?.id ?? '')
-      setLoading(false)
-    }).catch(() => {
-      if (!active) return
-      setLoadError(true)
-      setLoading(false)
-    })
-    return () => { active = false }
-  }, [])
+  const videos = [
+    { id: '67bO88fXKvY', title: '2026. 10. 18 주일예배 | 안경혁 목사', date: '2026. 10. 18' },
+    { id: 'Blw0d75jCYc', title: '2026. 10. 11 주일예배 | 안경혁 목사', date: '2026. 10. 11' },
+  ]
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(videos.length / pageSize))
+  const pageVideos = videos.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const selectedVideo = videos.find((video) => video.id === selectedVideoId)
-  return <div className="sermons-page"><ArchiveHeading eyebrow="SUNDAY WORSHIP · YOUTUBE LIVE" title="날짜별 주일예배 다시보기" note="최신순 영상 목록에서 날짜별 주일예배를 선택하면 이 화면에서 바로 재생됩니다."/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> YOUTUBE LIVE ARCHIVE</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube에서 전체 목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column">{selectedVideoId ? <iframe className="sermon-live-player" src={`https://www.youtube-nocookie.com/embed/${selectedVideoId}?rel=0`} title={selectedVideo?.title ?? '반가운교회 주일예배 다시보기'} referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/> : loadError ? <iframe className="sermon-live-player" src="https://www.youtube-nocookie.com/embed/videoseries?list=UULVuDEXkGt2YDc2rp4ZATt8ow&rel=0" title="반가운교회 주일예배 전체 재생목록" referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/> : <div className="sermon-player-empty">{loading ? '주일예배 영상을 불러오는 중입니다.' : '등록된 공개 영상이 없습니다.'}</div>}{selectedVideo && <div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo.title}</b></div>}</div><aside className="sermon-video-list"><h2>설교 영상 목록 <span>{videos.length}</span></h2>{loading && <p className="sermon-list-status">YouTube에서 영상을 불러오고 있습니다.</p>}{loadError && <p className="sermon-list-status">영상 목록을 불러오지 못했습니다. 플레이어에서 재생목록을 선택해 주세요.</p>}{!loading && !loadError && videos.length === 0 && <p className="sermon-list-status">등록된 공개 영상이 없습니다.</p>}{videos.map((video) => <button className={`sermon-video-item${video.id === selectedVideoId ? ' selected' : ''}`} key={video.id} onClick={() => setSelectedVideoId(video.id)} aria-pressed={video.id === selectedVideoId}>{video.thumbnail && <img src={video.thumbnail} alt="" loading="lazy"/>}<span><time>{video.publishedAt ? new Date(video.publishedAt).toLocaleDateString('ko-KR') : '주일예배'}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}</aside></div><p className="sermon-live-note">영상 목록은 반가운교회 YouTube 라이브 아카이브에서 가져옵니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C/streams" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 라이브 탭 열기 <ArrowUpRight size={15}/></a></div>
+  return <div className="sermons-page"><ArchiveHeading eyebrow="SUNDAY WORSHIP · YOUTUBE LIVE" title="날짜별 주일예배 다시보기" note="주일예배 영상을 최신 날짜순으로 확인하세요. 목록에서 제목을 누르면 선택한 영상이 재생됩니다."/><section className="sermon-live-card"><div className="sermon-live-header"><span><i/> YOUTUBE LIVE ARCHIVE</span><a href={livePlaylistUrl} target="_blank" rel="noreferrer">YouTube에서 전체 목록 보기 <ArrowUpRight size={15}/></a></div><div className="sermon-video-layout"><div className="sermon-player-column">{selectedVideo && <><iframe className="sermon-live-player" src={`https://www.youtube-nocookie.com/embed/${selectedVideo.id}?rel=0`} title={selectedVideo.title} referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/><div className="sermon-selected-title"><span>선택한 영상</span><b>{selectedVideo.title}</b></div></>}</div><aside className="sermon-video-list"><h2>설교 영상 목록 <span>{videos.length}</span></h2>{pageVideos.map((video) => <button className={`sermon-video-item${video.id === selectedVideoId ? ' selected' : ''}`} key={video.id} onClick={() => setSelectedVideoId(video.id)} aria-pressed={video.id === selectedVideoId}><img src={`https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`} alt="" loading="lazy"/><span><time>{video.date}</time><b>{video.title}</b></span><Youtube size={17}/></button>)}<nav className="sermon-pagination" aria-label="설교 영상 페이지"><button type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages}>다음</button></nav></aside></div><p className="sermon-live-note">주일예배 재생목록에서 확인한 공개 영상을 표시합니다.</p></section><a className="sermon-channel-link" href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C/streams" target="_blank" rel="noreferrer"><Youtube size={18}/> 반가운교회 YouTube 라이브 탭 열기 <ArrowUpRight size={15}/></a></div>
 }
+
+
 
 function Footer({ navigate }: { navigate: (id: string) => void }) {
   return <footer className="footer"><div className="footer-main"><button className="footer-brand" onClick={() => navigate('home')} aria-label="반가운교회 홈"><img src="/brand-lockup.png" alt="반가운교회"/></button><p>하나님과의 사귐으로 변화되고<br/>함께 하나님 나라를 살아가는 공동체</p><div className="footer-address"><MapPin size={15}/>서울시 성북구 성북로4길 52, 411동(근린상가) 3층 3302호</div><div className="footer-social"><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer"><Instagram size={17}/></a><a href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer"><Youtube size={18}/></a></div></div><div className="footer-bottom"><span>© 2026 반가운교회. All rights reserved.</span><div className="footer-actions"><button onClick={() => navigate('location')}>오시는 길 <ArrowRight size={13}/></button></div></div></footer>
