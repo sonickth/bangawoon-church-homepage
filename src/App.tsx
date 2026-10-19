@@ -65,7 +65,7 @@ const images = {
   board: '/images/hallway-board.jpg', opening: '/images/sanctuary-opening.jpg', sheet1: '/images/sermon-sheet-01.jpg',
   sheet2: '/images/sermon-sheet-02.jpg', sharing: '/images/after-sermon-sharing.jpg', practice: '/images/practice-room-first-service.jpg',
   bulletin1: '/images/bulletin-01.jpg', bulletin2: '/images/bulletin-02.jpg', newsletter1: '/images/newsletter-01.jpg',
-  newsletter2: '/images/newsletter-02.jpg', newsletter3: '/images/newsletter-03.jpg',
+  newsletter2: '/images/newsletter-02.jpg', newsletter3: '/images/newsletter-03.jpg', pastor: '/images/pastor-an-kyunghyuk.jpg',
 }
 
 function App() {
@@ -438,7 +438,7 @@ function ChurchIntro({ page }: { page: Page }) {
     ['07','함께 갈망하는 영적 공동체','하나님과의 사귐과 영적 성장을 함께 갈망하는 공동체로 뿌리내리고 실제로 기능할 때 열매 맺음을 믿습니다.'],
     ['08','있는 모습 그대로 사랑하기','소그룹 안에서 말씀을 나누고, 진실하게 나누며, 있는 모습 그대로 서로 사랑하는 공동체를 세웁니다.'],
   ].map(([number,title,body]) => <article className="philosophy-card" key={number}><span>{number}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div><div className="philosophy-pillars"><span>말씀</span><span>기도</span><span>예배</span><span>소그룹</span><span>선교</span></div></div>
-  return <div className="pastor-feature"><div className="pastor-placeholder"><Cross size={42}/><span>PASTOR</span></div><div><span className="eyebrow"><i/> SENIOR PASTOR</span><h2>안경혁 목사</h2><p>대한예수교장로회 통합교단 소속으로, 광나루 장로회신학대학교를 졸업하고 반가운교회를 섬기고 있습니다.</p><span className="content-note">담임목사 · 대한예수교장로회 통합 · 광나루 장신대 졸업</span></div></div>
+  return <div className="pastor-feature"><img className="pastor-photo" src={images.pastor} alt="안경혁 담임목사"/><div className="pastor-copy"><span className="eyebrow"><i/> SENIOR PASTOR</span><h2>안경혁 목사</h2><p className="pastor-greeting">하나님과 함께, 여러분과 함께 걷고 싶습니다.</p><ul className="pastor-career"><li>한양대학교 산업공학과 졸업</li><li>한국기독학생회(IVF) 간사</li><li>광나루 장로회신학대학교 신대원 신학과 졸업</li><li>현) 반가운교회 담임목사</li></ul></div></div>
 }
 
 function OfferingPage() {
