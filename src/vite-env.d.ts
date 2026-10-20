@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_YOUTUBE_API_KEY?: string
+  readonly VITE_NAVER_MAPS_CLIENT_ID?: string
 }
 
 interface ImportMeta {

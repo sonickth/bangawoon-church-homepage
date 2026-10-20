@@ -11,11 +11,14 @@ type Page = { id: string; title: string; section: string; description: string }
 type MenuGroup = { title: string; items: Page[] }
 type YouTubePlayer = { loadPlaylist: (playlist: { list: string; listType: 'playlist'; index: number }) => void; cuePlaylist: (playlist: { list: string; listType: 'playlist'; index: number }) => void; cueVideoById: (videoId: string) => void; loadVideoById: (videoId: string) => void; destroy: () => void }
 type YouTubePlayerApi = { Player: new (element: HTMLElement, options: { width: string; height: string; playerVars: Record<string, string | number>; events: { onReady: (event: { target: YouTubePlayer }) => void } }) => YouTubePlayer }
+type NaverMapsApi = { maps: { LatLng: new (lat: number, lng: number) => unknown; Map: new (element: HTMLElement, options: { center: unknown; zoom: number }) => unknown; Marker: new (options: { map: unknown; position: unknown; title: string }) => unknown } }
 
 declare global {
   interface Window {
     YT?: YouTubePlayerApi
     onYouTubeIframeAPIReady?: () => void
+    naver?: NaverMapsApi
+    navermap_authFailure?: () => void
   }
 }
 
@@ -209,7 +212,7 @@ function PageContent({ page, navigate, user, isAdmin, authReady, onAuthOpen }: {
   if (page.id === 'community' || page.id === 'community-story' || page.id === 'prayer-share' || page.id === 'prayer') return <CommunityPage page={page}/>
   if (page.id === 'worship') return <div className="worship-page"><div className="service-list large"><Service day="매주 주일" title="주일예배" time="오전 11:00" pageId="sermons" navigate={navigate}/><Service day="화–금" title="새벽기도회" time="오전 05:30" pageId="dawn-worship" navigate={navigate}/><Service day="매주 금요일" title="금요기도회" time="오후 08:30"/></div><div className="worship-page-photo"><img src={images.interior} alt="반가운교회 예배 공간"/><div><span>WORSHIP TOGETHER</span><b>처음 오시는 분도<br/>편안히 함께 예배드려요.</b></div></div><button className="text-link" onClick={() => navigate('location')}>예배 장소와 오시는 길 <ArrowRight size={16}/></button></div>
   if (page.id === 'offering') return <OfferingPage/>
-  if (page.id === 'location') return <div className="location-layout"><div className="location-card"><MapPin size={22}/><div><span className="eyebrow"><i/> FIND US</span><h2>반가운교회</h2><p>서울시 성북구 성북로4길 52<br/>411동(근린상가) 3층 3302호</p><a className="location-phone" href="tel:01026071278"><Phone size={14}/> Tel) 010-2607-1278</a><a href="https://map.naver.com/p/entry/place/2091217307" target="_blank" rel="noreferrer" className="text-link">네이버 지도에서 길찾기 <ArrowUpRight size={16}/></a></div></div><a className="church-map-frame church-map-link" href="https://map.naver.com/p/entry/place/2091217307" target="_blank" rel="noreferrer" aria-label="네이버 지도에서 반가운교회 위치 열기"><div className="map-street map-street-one"/><div className="map-street map-street-two"/><div className="map-street map-street-three"/><span className="map-area-label">서울 성북구</span><span className="church-map-marker"><MapPin size={36}/><b>반가운교회</b></span><span className="map-open-label">네이버 지도에서 위치 확인 <ArrowUpRight size={15}/></span></a></div>
+  if (page.id === 'location') return <div className="location-layout"><div className="location-card"><MapPin size={22}/><div><span className="eyebrow"><i/> FIND US</span><h2>반가운교회</h2><p>서울시 성북구 성북로4길 52<br/>411동(근린상가) 3층 3302호</p><a className="location-phone" href="tel:01026071278"><Phone size={14}/> Tel) 010-2607-1278</a><a href="https://map.naver.com/p/entry/place/2091217307" target="_blank" rel="noreferrer" className="text-link">네이버 지도에서 길찾기 <ArrowUpRight size={16}/></a></div></div><NaverChurchMap/></div>
   if (page.id === 'faq') return <div className="faq-list">{['처음 방문할 때 어떻게 하면 되나요?','아이와 함께 예배드릴 수 있나요?','주차 및 건물 출입은 어떻게 하나요?'].map((question, index) => <button className="faq-item" key={question} onClick={() => setOpenFaq(openFaq === index ? null : index)}><b><span>Q{index + 1}</span>{question}<ChevronDown size={17}/></b>{openFaq === index && <p>{index === 0 ? '예배 시간에 맞춰 오시면 안내해 드립니다. 처음 오셨다면 편하게 인사해 주세요.' : index === 1 ? '어린이와 학생도 환영합니다. 가족과 함께 편안하게 예배드리실 수 있습니다.' : '주차와 건물 진입 안내는 교회에서 확인 중입니다. 방문 안내가 정리되면 이곳에 업데이트하겠습니다.'}</p>}</button>)}</div>
   if (page.id === 'sns') return <div className="sns-layout"><section className="social-preview instagram-latest"><div className="youtube-latest-heading"><div><span className="eyebrow"><i/> LATEST FROM INSTAGRAM</span><h2>반가운교회 인스타그램</h2><p>교회의 일상과 최신 게시물을 확인해 보세요.</p></div><a href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer">프로필 방문 <ArrowUpRight size={15}/></a></div><iframe className="instagram-latest-frame" src="https://www.instagram.com/bangawoonchurch/embed" title="반가운교회 Instagram 최신 게시물" loading="lazy" referrerPolicy="strict-origin-when-cross-origin"/><a className="social-preview-link" href="https://www.instagram.com/bangawoonchurch/" target="_blank" rel="noreferrer"><Instagram size={16}/> Instagram에서 게시물 더 보기 <ArrowUpRight size={14}/></a></section><section className="social-preview youtube-latest"><div className="youtube-latest-heading"><div><span className="eyebrow"><i/> LATEST FROM YOUTUBE</span><h2>반가운교회 최신 영상</h2><p>재생 버튼을 누르면 이곳에서 바로 시청할 수 있습니다.</p></div><a href="https://www.youtube.com/@%EB%B0%98%EA%B0%80%EC%9A%B4%EA%B5%90%ED%9A%8C" target="_blank" rel="noreferrer">채널 방문 <ArrowUpRight size={15}/></a></div><iframe className="youtube-latest-player" src="https://www.youtube-nocookie.com/embed/videoseries?list=UUuDEXkGt2YDc2rp4ZATt8ow&rel=0" title="반가운교회 YouTube 최신 영상" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/></section></div>
   if (page.id === 'welcome') return <WelcomePage navigate={navigate}/>
@@ -222,6 +225,68 @@ function PageContent({ page, navigate, user, isAdmin, authReady, onAuthOpen }: {
 
 function ArchiveHeading({ eyebrow, title, note }: { eyebrow: string; title: string; note: string }) {
   return <div className="archive-heading"><span className="eyebrow"><i/> {eyebrow}</span><h2>{title}</h2><p>{note}</p></div>
+}
+
+function NaverChurchMap() {
+  const mapElement = useRef<HTMLDivElement>(null)
+  const [mapError, setMapError] = useState('')
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_NAVER_MAPS_CLIENT_ID?.trim()
+    if (!clientId) {
+      setMapError('네이버 지도 Client ID가 설정되지 않았습니다.')
+      return
+    }
+
+    let cancelled = false
+    const previousAuthFailure = window.navermap_authFailure
+    window.navermap_authFailure = () => {
+      previousAuthFailure?.()
+      if (!cancelled) setMapError('네이버 지도 인증에 실패했습니다. Client ID와 허용 URL을 확인해 주세요.')
+    }
+    const placeMap = () => {
+      if (cancelled || !mapElement.current || !window.naver?.maps) return
+      try {
+        const churchLocation = new window.naver.maps.LatLng(37.5944725, 127.0127060)
+        const map = new window.naver.maps.Map(mapElement.current, { center: churchLocation, zoom: 16 })
+        new window.naver.maps.Marker({ map, position: churchLocation, title: '반가운교회' })
+        setMapError('')
+      } catch {
+        setMapError('네이버 지도를 불러오지 못했습니다. Client ID와 허용 URL을 확인해 주세요.')
+      }
+    }
+
+    if (window.naver?.maps) {
+      placeMap()
+      return () => {
+        cancelled = true
+        window.navermap_authFailure = previousAuthFailure
+      }
+    }
+
+    let script = document.querySelector<HTMLScriptElement>('script[data-naver-maps-sdk]')
+    if (!script) {
+      script = document.createElement('script')
+      script.dataset.naverMapsSdk = 'true'
+      script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`
+      script.async = true
+      script.defer = true
+      document.head.appendChild(script)
+    }
+    const failLoading = () => {
+      if (!cancelled) setMapError('네이버 지도 SDK를 불러오지 못했습니다. Client ID와 허용 URL을 확인해 주세요.')
+    }
+    script.addEventListener('load', placeMap)
+    script.addEventListener('error', failLoading)
+    return () => {
+      cancelled = true
+      window.navermap_authFailure = previousAuthFailure
+      script?.removeEventListener('load', placeMap)
+      script?.removeEventListener('error', failLoading)
+    }
+  }, [])
+
+  return <div className="church-map-frame naver-map-shell"><div className="naver-map-canvas" ref={mapElement} aria-label="반가운교회 네이버 지도"/>{mapError && <div className="naver-map-error"><MapPin size={23}/><p>{mapError}</p><a href="https://map.naver.com/p/entry/place/2091217307" target="_blank" rel="noreferrer">네이버 지도에서 장소 보기 <ArrowUpRight size={14}/></a></div>}</div>
 }
 
 type PostAttachment = { url: string; path: string; name: string; type: string }
