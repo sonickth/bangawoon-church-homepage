@@ -13,7 +13,7 @@ service firebase.storage {
       return isAdmin() || (
         request.auth != null
         && request.auth.uid == uid
-        && category in ['gallery', 'prayer']
+        && category in ['gallery', 'prayer', 'sermon-share']
       );
     }
 

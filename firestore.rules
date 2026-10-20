@@ -10,7 +10,7 @@ service cloud.firestore {
     }
 
     function mayManageCategory(category) {
-      return isAdmin() || (request.auth != null && category in ['gallery', 'prayer']);
+      return isAdmin() || (request.auth != null && category in ['gallery', 'prayer', 'sermon-share']);
     }
 
     function validPost() {
@@ -18,7 +18,7 @@ service cloud.firestore {
           'category', 'title', 'body', 'date', 'imageUrl', 'fileUrl', 'filePath', 'fileName', 'fileType', 'attachments', 'linkUrl', 'authorEmail', 'authorUid', 'createdAt'
         ])
         && request.resource.data.category in [
-          'sermons', 'bulletin', 'notices', 'calendar', 'gallery', 'community', 'nextgen', 'prayer'
+          'sermons', 'bulletin', 'notices', 'calendar', 'gallery', 'community', 'nextgen', 'prayer', 'sermon-share'
         ]
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
@@ -41,7 +41,7 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isAdmin() || (
         request.auth != null
-        && resource.data.category in ['gallery', 'prayer']
+        && resource.data.category in ['gallery', 'prayer', 'sermon-share']
         && resource.data.authorUid == request.auth.uid
       );
     }
