@@ -232,7 +232,7 @@ function NaverChurchMap() {
   const [mapError, setMapError] = useState('')
 
   useEffect(() => {
-    const clientId = import.meta.env.VITE_NAVER_MAPS_CLIENT_ID?.trim()
+    const clientId = import.meta.env.VITE_NAVER_MAPS_CLIENT_ID?.trim() || 'a4polttpw5'
     if (!clientId) {
       setMapError('네이버 지도 Client ID가 설정되지 않았습니다.')
       return
