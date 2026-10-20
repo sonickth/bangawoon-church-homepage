@@ -185,7 +185,7 @@ function Value({ color, number, title, english, body }: { color: string; number:
 }
 
 function Service({ day, title, time, pageId, navigate }: { day: string; title: string; time: string; pageId?: string; navigate?: (id: string) => void }) {
-  return <div className="service-row"><span>{day}</span><b>{title}</b><time><Clock3 size={14}/>{time}</time>{pageId && navigate && <button className="service-video-button" onClick={() => navigate(pageId)} aria-label={`${title} 영상 보기`}><Video size={14}/><span>영상 보기</span></button>}</div>
+  return <div className="service-row"><span>{day}</span><div className="service-title-group"><b>{title}</b>{pageId && navigate && <button className="service-video-button" onClick={() => navigate(pageId)} aria-label={`${title} 영상 보기`}><Video size={14}/><span>영상 보기</span></button>}</div><time><Clock3 size={14}/>{time}</time></div>
 }
 
 function Interior({ page, navigate, user, isAdmin, authReady, onAuthOpen }: { page: Page; navigate: (id: string) => void; user: User | null; isAdmin: boolean; authReady: boolean; onAuthOpen: (mode?: 'login' | 'signup') => void }) {
