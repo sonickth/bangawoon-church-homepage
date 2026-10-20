@@ -247,7 +247,7 @@ function NaverChurchMap() {
     const placeMap = () => {
       if (cancelled || !mapElement.current || !window.naver?.maps) return
       try {
-        const churchLocation = new window.naver.maps.LatLng(37.5944725, 127.0127060)
+        const churchLocation = new window.naver.maps.LatLng(37.5969455, 127.0123799)
         const map = new window.naver.maps.Map(mapElement.current, { center: churchLocation, zoom: 16 })
         new window.naver.maps.Marker({ map, position: churchLocation, title: '반가운교회' })
         setMapError('')
