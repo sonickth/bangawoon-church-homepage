@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth'
 import type { User } from 'firebase/auth'
-import { addDoc, collection, deleteDoc, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, Clock3, Cross, Copy, Instagram, MapPin, Menu as MenuIcon, Search, X, Youtube, LogIn, LogOut, Trash2, ImagePlus, Phone, Video } from 'lucide-react'
 import { ADMIN_EMAIL, auth, db, storage } from './firebase'
@@ -354,12 +354,24 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
   const [linkUrl, setLinkUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [profileName, setProfileName] = useState('')
   const migratedAuthorNames = useRef(new Set<string>())
   const canManage = isAdmin || (!!user && memberBoardCategories.has(category))
   const pageSize = 10
   const totalPages = Math.max(1, Math.ceil(posts.length / pageSize))
   const pagePosts = posts.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const postsQuery = query(collection(db, 'posts'), where('category', '==', category), orderBy('date', 'desc'))
+
+  useEffect(() => {
+    let active = true
+    setProfileName(user?.displayName?.trim() || '')
+    if (!user) return () => { active = false }
+    void getDoc(doc(db, 'userProfiles', user.uid)).then((snapshot) => {
+      const savedName = snapshot.data()?.displayName
+      if (active && typeof savedName === 'string' && savedName.trim()) setProfileName(savedName.trim())
+    }).catch(() => undefined)
+    return () => { active = false }
+  }, [user])
 
   const refreshPosts = async () => {
     const snapshot = await getDocs(postsQuery)
@@ -390,7 +402,7 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
   }, [category])
 
   useEffect(() => {
-    const authorName = user?.displayName?.trim()
+    const authorName = profileName || user?.displayName?.trim()
     if (!authorName) return
     const missingNames = posts.filter((post) => post.authorUid === user.uid && !post.authorName && !migratedAuthorNames.current.has(post.id))
     if (!missingNames.length) return
@@ -398,7 +410,7 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
     void Promise.all(missingNames.map((post) => updateDoc(doc(db, 'posts', post.id), { authorName }))).catch(() => {
       missingNames.forEach((post) => migratedAuthorNames.current.delete(post.id))
     })
-  }, [posts, user])
+  }, [posts, user, profileName])
 
   useEffect(() => { setCurrentPage(1) }, [category])
   useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages) }, [currentPage, totalPages])
@@ -409,6 +421,7 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
     setError('')
     const uploadedPaths: string[] = []
     let postCreated = false
+    let savePhase = files.length ? '첨부파일 업로드' : '게시물 저장'
     try {
       if (files.length > 10) {
         setError('게시물 한 건에 첨부할 수 있는 파일은 최대 10개입니다.')
@@ -431,21 +444,32 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
       const uploadedFiles = uploadResults.map((result) => (result as PromiseFulfilledResult<PostAttachment>).value)
       const firstAttachment = uploadedFiles[0]
       const firstImage = uploadedFiles.find((file) => file.type.startsWith('image/'))
+      savePhase = 'Firestore 게시물 저장'
       await addDoc(collection(db, 'posts'), {
         category, title: postTitle.trim(), body: postBody.trim(), date: postDate,
         ...(firstAttachment ? { fileUrl: firstAttachment.url, filePath: firstAttachment.path, fileName: firstAttachment.name, fileType: firstAttachment.type } : {}),
         ...(firstImage ? { imageUrl: firstImage.url } : {}),
         ...(uploadedFiles.length ? { attachments: uploadedFiles } : {}),
         ...(relatedLink.trim() ? { linkUrl: relatedLink.trim() } : {}),
-        authorEmail: user.email, authorUid: user.uid, authorName: user.displayName?.trim() || '회원', createdAt: serverTimestamp(),
+        authorEmail: user.email, authorUid: user.uid, authorName: profileName || user.displayName?.trim() || '회원', createdAt: serverTimestamp(),
       })
       postCreated = true
       await refreshPosts()
       setTitle(''); setBody(''); setAttachments([]); setLinkUrl(''); setSelected(null)
       if (attachmentInput.current) attachmentInput.current.value = ''
-    } catch {
+    } catch (cause) {
       if (!postCreated) await Promise.all(uploadedPaths.map((path) => deleteObject(ref(storage, path)).catch(() => undefined)))
-      setError(postCreated ? '게시물은 저장됐지만 목록 새로고침에 실패했습니다. 잠시 후 다시 확인해 주세요.' : '게시물 등록에 실패했습니다. 이메일 로그인 제공자, Firebase Storage 버킷과 배포된 보안 규칙을 확인해 주세요.')
+      if (postCreated) {
+        setError('게시물은 저장됐지만 목록 새로고침에 실패했습니다. 잠시 후 다시 확인해 주세요.')
+      } else {
+        const firebaseError = cause as { code?: string; message?: string }
+        const causeText = firebaseError.code === 'storage/unauthorized'
+          ? 'Firebase Storage 규칙에서 업로드를 거부했습니다. Storage 규칙 배포와 관리자 권한을 확인해 주세요.'
+          : firebaseError.code === 'permission-denied'
+            ? 'Firestore 규칙에서 게시물 저장을 거부했습니다. firestore:rules 배포와 관리자 권한을 확인해 주세요.'
+            : `${firebaseError.code || '오류'}${firebaseError.message ? ` · ${firebaseError.message}` : ''}`
+        setError(`${savePhase} 실패: ${causeText}`)
+      }
     } finally { setSaving(false) }
   }
 
@@ -485,7 +509,7 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
     {canManage && <form className="post-form" onSubmit={createPost}><h3>새 게시물 등록</h3><div className="post-form-grid"><label>제목<input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="게시물 제목"/></label><label>게시 날짜<input required type="date" value={date} onChange={(e) => setDate(e.target.value)}/></label><label className="wide-field">내용<textarea maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="게시물 내용을 입력해 주세요."/></label><label className="attachment-picker"><span>사진 또는 PDF 여러 개 첨부 (최대 10개, 파일당 15MB)</span><input ref={attachmentInput} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(e) => setAttachments(Array.from(e.target.files ?? []))}/><small>JPG·PNG·WEBP 사진은 긴 변을 최대 1,280px로 줄여 WebP로 압축 저장합니다. GIF와 PDF는 원본을 유지합니다.</small>{attachments.length > 0 && <small><ImagePlus size={13}/> {attachments.length}개 선택됨: {attachments.map((file) => file.name).join(', ')}</small>}</label><label>관련 링크(선택)<input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..."/></label></div><button className="pill-button" disabled={saving}>{saving ? '등록 후 목록을 확인하는 중…' : '게시물 등록'} <ArrowRight size={15}/></button></form>}
     {error && <div className="board-error" role="alert"><span>{error}</span><button type="button" onClick={() => void refreshList()} disabled={refreshing}>{refreshing ? '조회 중…' : '다시 조회'}</button></div>}
     <div className="post-list-tools"><span>{posts.length}개 게시물</span><button type="button" onClick={() => void refreshList()} disabled={refreshing}>{refreshing ? '다시 조회 중…' : '목록 다시 조회'}</button></div>
-    {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{canManage ? '위 입력란에서 게시물과 사진을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p>{isAdmin && category === 'bulletin' && <button className="sample-bulletin-button" type="button" disabled={saving} onClick={() => void createSampleBulletin()}>{saving ? '참고 주보 등록 및 목록 확인 중…' : '참고사진의 주보 예시 바로 등록'}</button>}</div> : <><div className="post-list">{pagePosts.map((post) => { const postFiles = post.attachments?.length ? post.attachments : post.fileUrl ? [{ url: post.fileUrl, path: post.filePath ?? '', name: post.fileName ?? '첨부 파일', type: post.fileType ?? '' }] : []; const thumbnail = postFiles.find((file) => file.type.startsWith('image/'))?.url ?? post.imageUrl; return <article className="post-card" key={post.id}>{thumbnail && <button className="post-image" onClick={() => setSelected(post)}><img src={thumbnail} alt="첨부 미리보기"/>{postFiles.filter((file) => file.type.startsWith('image/')).length > 1 && <span className="attachment-count">사진 {postFiles.filter((file) => file.type.startsWith('image/')).length}장</span>}</button>}<button className="post-main" onClick={() => setSelected(post)}><span className="post-main-copy"><h3>{post.title}</h3><p>{post.body || postFiles.map((file) => file.name).join(', ') || '자세한 내용을 확인하세요.'}</p></span><span className="post-main-meta"><time>{post.date}</time><small>{post.authorName || (user?.uid === post.authorUid ? user.displayName : '') || '회원'}</small></span></button>{canManage && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>})}</div><nav className="board-pagination" aria-label={`${page.title} 게시물 페이지`}><button type="button" onClick={() => setCurrentPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => setCurrentPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages}>다음</button></nav></>}
+    {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{canManage ? '위 입력란에서 게시물과 사진을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p>{isAdmin && category === 'bulletin' && <button className="sample-bulletin-button" type="button" disabled={saving} onClick={() => void createSampleBulletin()}>{saving ? '참고 주보 등록 및 목록 확인 중…' : '참고사진의 주보 예시 바로 등록'}</button>}</div> : <><div className="post-list">{pagePosts.map((post) => { const postFiles = post.attachments?.length ? post.attachments : post.fileUrl ? [{ url: post.fileUrl, path: post.filePath ?? '', name: post.fileName ?? '첨부 파일', type: post.fileType ?? '' }] : []; const thumbnail = postFiles.find((file) => file.type.startsWith('image/'))?.url ?? post.imageUrl; const authorName = post.authorName || (user?.uid === post.authorUid ? profileName || user.displayName : '') || '회원'; return <article className="post-card" key={post.id}>{thumbnail && <button className="post-image" onClick={() => setSelected(post)}><img src={thumbnail} alt="첨부 미리보기"/>{postFiles.filter((file) => file.type.startsWith('image/')).length > 1 && <span className="attachment-count">사진 {postFiles.filter((file) => file.type.startsWith('image/')).length}장</span>}</button>}<button className="post-main" onClick={() => setSelected(post)}><span className="post-main-copy"><h3>{post.title}</h3><p>{post.body || postFiles.map((file) => file.name).join(', ') || '자세한 내용을 확인하세요.'}</p></span><span className="post-main-meta"><time>{post.date}</time><small>{authorName}</small></span></button>{canManage && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>})}</div><nav className="board-pagination" aria-label={`${page.title} 게시물 페이지`}><button type="button" onClick={() => setCurrentPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => setCurrentPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages}>다음</button></nav></>}
     {selected && <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null) }}><article className="post-detail" role="dialog" aria-modal="true" aria-label={selected.title}><button className="post-close" onClick={() => setSelected(null)} aria-label="닫기"><X/></button><time>{selected.date}</time><h2>{selected.title}</h2><p>{selected.body}</p><div className="post-attachments">{(selected.attachments?.length ? selected.attachments : selected.fileUrl ? [{ url: selected.fileUrl, path: selected.filePath ?? '', name: selected.fileName ?? '첨부 파일', type: selected.fileType ?? '' }] : []).map((file) => file.type.startsWith('image/') ? <a key={file.path || file.url} href={file.url} target="_blank" rel="noreferrer" className="post-attachment-image"><img src={file.url} alt={file.name}/><span>{file.name} <ArrowUpRight size={14}/></span></a> : <a className="post-attachment-file" key={file.path || file.url} href={file.url} target="_blank" rel="noreferrer"><BookOpen size={17}/>{file.name}<ArrowUpRight size={14}/></a>)}</div>{selected.linkUrl && <a className="text-link" href={selected.linkUrl} target="_blank" rel="noreferrer">관련 자료 열기 <ArrowUpRight size={15}/></a>}{canManage && <button className="post-delete detail-delete" onClick={() => void removePost(selected)}><Trash2 size={15}/> 게시물 삭제</button>}</article></div>}
   </div>
 }
