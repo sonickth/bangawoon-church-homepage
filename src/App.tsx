@@ -98,6 +98,7 @@ function App() {
   useEffect(() => onAuthStateChanged(auth, (nextUser) => {
     setUser(nextUser)
     setAuthReady(true)
+    if (nextUser) void syncPublicAuthorName(nextUser).catch(() => undefined)
   }), [])
   useEffect(() => {
     if (!authMessage || loginOpen) return
@@ -127,12 +128,14 @@ function App() {
             phoneNumber: phone.trim(),
             createdAt: serverTimestamp(),
           })
+          await syncPublicAuthorName(credential.user)
           setAuthMessage('회원가입과 로그인이 완료되었습니다.')
         } catch {
           setAuthMessage('회원가입과 로그인은 완료되었지만 전화번호 저장에 실패했습니다. Firestore 규칙 배포 상태를 확인해 주세요.')
         }
       } else {
-        await signInWithEmailAndPassword(auth, email.trim(), password)
+        const credential = await signInWithEmailAndPassword(auth, email.trim(), password)
+        await syncPublicAuthorName(credential.user).catch(() => undefined)
         setAuthMessage('로그인되었습니다.')
       }
       setLoginOpen(false)
@@ -308,6 +311,13 @@ function NaverChurchMap() {
 type PostAttachment = { url: string; path: string; name: string; type: string }
 type ChurchPost = { id: string; category: string; title: string; body: string; date: string; imageUrl?: string; fileUrl?: string; filePath?: string; fileName?: string; fileType?: string; attachments?: PostAttachment[]; linkUrl?: string; authorEmail?: string; authorUid?: string; authorName?: string }
 
+async function syncPublicAuthorName(user: User) {
+  const profile = await getDoc(doc(db, 'userProfiles', user.uid))
+  const displayName = profile.data()?.displayName
+  if (typeof displayName !== 'string' || !displayName.trim()) return
+  await setDoc(doc(db, 'publicUserProfiles', user.uid), { displayName: displayName.trim() })
+}
+
 function getFirstPostImage(post: ChurchPost | null) {
   if (!post) return ''
   return post.attachments?.find((file) => file.type.startsWith('image/'))?.url
@@ -355,6 +365,7 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [profileName, setProfileName] = useState('')
+  const [authorNames, setAuthorNames] = useState<Record<string, string>>({})
   const migratedAuthorNames = useRef(new Set<string>())
   const canManage = isAdmin || (!!user && memberBoardCategories.has(category))
   const pageSize = 10
@@ -400,6 +411,26 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
       setError(`게시물을 불러오지 못했습니다 (${cause.code}). 다시 조회해 보세요. 계속되면 Firebase 규칙/색인 배포 상태를 확인해 주세요.`)
     })
   }, [category])
+
+  useEffect(() => {
+    const visiblePosts = posts.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    const authorUids = [...new Set(visiblePosts.map((post) => post.authorUid).filter((uid): uid is string => !!uid))]
+      .filter((uid) => !visiblePosts.some((post) => post.authorUid === uid && post.authorName) && !authorNames[uid])
+    if (!authorUids.length) return
+    let active = true
+    void Promise.all(authorUids.map(async (uid) => {
+      try {
+        const snapshot = await getDoc(doc(db, 'publicUserProfiles', uid))
+        const name = snapshot.data()?.displayName
+        return typeof name === 'string' && name.trim() ? [uid, name.trim()] as const : null
+      } catch { return null }
+    })).then((results) => {
+      if (!active) return
+      const resolved = Object.fromEntries(results.filter((entry): entry is readonly [string, string] => !!entry))
+      if (Object.keys(resolved).length) setAuthorNames((current) => ({ ...current, ...resolved }))
+    })
+    return () => { active = false }
+  }, [posts, currentPage, authorNames])
 
   useEffect(() => {
     const authorName = profileName || user?.displayName?.trim()
@@ -509,7 +540,7 @@ function BoardPage({ page, category, user, isAdmin, authReady, onAuthOpen }: { p
     {canManage && <form className="post-form" onSubmit={createPost}><h3>새 게시물 등록</h3><div className="post-form-grid"><label>제목<input required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="게시물 제목"/></label><label>게시 날짜<input required type="date" value={date} onChange={(e) => setDate(e.target.value)}/></label><label className="wide-field">내용<textarea maxLength={20000} value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="게시물 내용을 입력해 주세요."/></label><label className="attachment-picker"><span>사진 또는 PDF 여러 개 첨부 (최대 10개, 파일당 15MB)</span><input ref={attachmentInput} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(e) => setAttachments(Array.from(e.target.files ?? []))}/><small>JPG·PNG·WEBP 사진은 긴 변을 최대 1,280px로 줄여 WebP로 압축 저장합니다. GIF와 PDF는 원본을 유지합니다.</small>{attachments.length > 0 && <small><ImagePlus size={13}/> {attachments.length}개 선택됨: {attachments.map((file) => file.name).join(', ')}</small>}</label><label>관련 링크(선택)<input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..."/></label></div><button className="pill-button" disabled={saving}>{saving ? '등록 후 목록을 확인하는 중…' : '게시물 등록'} <ArrowRight size={15}/></button></form>}
     {error && <div className="board-error" role="alert"><span>{error}</span><button type="button" onClick={() => void refreshList()} disabled={refreshing}>{refreshing ? '조회 중…' : '다시 조회'}</button></div>}
     <div className="post-list-tools"><span>{posts.length}개 게시물</span><button type="button" onClick={() => void refreshList()} disabled={refreshing}>{refreshing ? '다시 조회 중…' : '목록 다시 조회'}</button></div>
-    {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{canManage ? '위 입력란에서 게시물과 사진을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p>{isAdmin && category === 'bulletin' && <button className="sample-bulletin-button" type="button" disabled={saving} onClick={() => void createSampleBulletin()}>{saving ? '참고 주보 등록 및 목록 확인 중…' : '참고사진의 주보 예시 바로 등록'}</button>}</div> : <><div className="post-list">{pagePosts.map((post) => { const postFiles = post.attachments?.length ? post.attachments : post.fileUrl ? [{ url: post.fileUrl, path: post.filePath ?? '', name: post.fileName ?? '첨부 파일', type: post.fileType ?? '' }] : []; const thumbnail = postFiles.find((file) => file.type.startsWith('image/'))?.url ?? post.imageUrl; const authorName = post.authorName || (user?.uid === post.authorUid ? profileName || user?.displayName : '') || '회원'; return <article className="post-card" key={post.id}>{thumbnail && <button className="post-image" onClick={() => setSelected(post)}><img src={thumbnail} alt="첨부 미리보기"/>{postFiles.filter((file) => file.type.startsWith('image/')).length > 1 && <span className="attachment-count">사진 {postFiles.filter((file) => file.type.startsWith('image/')).length}장</span>}</button>}<button className="post-main" onClick={() => setSelected(post)}><span className="post-main-copy"><h3>{post.title}</h3><p>{post.body || postFiles.map((file) => file.name).join(', ') || '자세한 내용을 확인하세요.'}</p></span><span className="post-main-meta"><time>{post.date}</time><small>{authorName}</small></span></button>{canManage && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>})}</div><nav className="board-pagination" aria-label={`${page.title} 게시물 페이지`}><button type="button" onClick={() => setCurrentPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => setCurrentPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages}>다음</button></nav></>}
+    {loading ? <p className="board-status">게시물을 불러오는 중입니다.</p> : posts.length === 0 ? <div className="board-empty"><BookOpen size={28}/><h3>등록된 게시물이 없습니다.</h3><p>{canManage ? '위 입력란에서 게시물과 사진을 등록해 보세요.' : '새 소식이 등록되면 이곳에서 확인하실 수 있습니다.'}</p>{isAdmin && category === 'bulletin' && <button className="sample-bulletin-button" type="button" disabled={saving} onClick={() => void createSampleBulletin()}>{saving ? '참고 주보 등록 및 목록 확인 중…' : '참고사진의 주보 예시 바로 등록'}</button>}</div> : <><div className="post-list">{pagePosts.map((post) => { const postFiles = post.attachments?.length ? post.attachments : post.fileUrl ? [{ url: post.fileUrl, path: post.filePath ?? '', name: post.fileName ?? '첨부 파일', type: post.fileType ?? '' }] : []; const thumbnail = postFiles.find((file) => file.type.startsWith('image/'))?.url ?? post.imageUrl; const authorName = post.authorName || (post.authorUid ? authorNames[post.authorUid] : '') || (user?.uid === post.authorUid ? profileName || user?.displayName : '') || '회원'; return <article className="post-card" key={post.id}>{thumbnail && <button className="post-image" onClick={() => setSelected(post)}><img src={thumbnail} alt="첨부 미리보기"/>{postFiles.filter((file) => file.type.startsWith('image/')).length > 1 && <span className="attachment-count">사진 {postFiles.filter((file) => file.type.startsWith('image/')).length}장</span>}</button>}<button className="post-main" onClick={() => setSelected(post)}><span className="post-main-copy"><h3>{post.title}</h3><p>{post.body || postFiles.map((file) => file.name).join(', ') || '자세한 내용을 확인하세요.'}</p></span><span className="post-main-meta"><time>{post.date}</time><small>{authorName}</small></span></button>{canManage && <button className="post-delete" onClick={() => void removePost(post)} aria-label={`${post.title} 삭제`}><Trash2 size={16}/></button>}</article>})}</div><nav className="board-pagination" aria-label={`${page.title} 게시물 페이지`}><button type="button" onClick={() => setCurrentPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1}>이전</button><span>{currentPage} / {totalPages}</span><button type="button" onClick={() => setCurrentPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage === totalPages}>다음</button></nav></>}
     {selected && <div className="post-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null) }}><article className="post-detail" role="dialog" aria-modal="true" aria-label={selected.title}><button className="post-close" onClick={() => setSelected(null)} aria-label="닫기"><X/></button><time>{selected.date}</time><h2>{selected.title}</h2><p>{selected.body}</p><div className="post-attachments">{(selected.attachments?.length ? selected.attachments : selected.fileUrl ? [{ url: selected.fileUrl, path: selected.filePath ?? '', name: selected.fileName ?? '첨부 파일', type: selected.fileType ?? '' }] : []).map((file) => file.type.startsWith('image/') ? <a key={file.path || file.url} href={file.url} target="_blank" rel="noreferrer" className="post-attachment-image"><img src={file.url} alt={file.name}/><span>{file.name} <ArrowUpRight size={14}/></span></a> : <a className="post-attachment-file" key={file.path || file.url} href={file.url} target="_blank" rel="noreferrer"><BookOpen size={17}/>{file.name}<ArrowUpRight size={14}/></a>)}</div>{selected.linkUrl && <a className="text-link" href={selected.linkUrl} target="_blank" rel="noreferrer">관련 자료 열기 <ArrowUpRight size={15}/></a>}{canManage && <button className="post-delete detail-delete" onClick={() => void removePost(selected)}><Trash2 size={15}/> 게시물 삭제</button>}</article></div>}
   </div>
 }
