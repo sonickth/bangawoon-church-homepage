@@ -15,7 +15,7 @@ service cloud.firestore {
 
     function validPost() {
       return request.resource.data.keys().hasOnly([
-          'category', 'title', 'body', 'date', 'imageUrl', 'fileUrl', 'filePath', 'fileName', 'fileType', 'attachments', 'linkUrl', 'authorEmail', 'authorUid', 'createdAt'
+          'category', 'title', 'body', 'date', 'imageUrl', 'fileUrl', 'filePath', 'fileName', 'fileType', 'attachments', 'linkUrl', 'authorEmail', 'authorUid', 'authorName', 'createdAt'
         ])
         && request.resource.data.category in [
           'sermons', 'bulletin', 'notices', 'calendar', 'gallery', 'community', 'nextgen', 'prayer', 'sermon-share'
@@ -28,6 +28,9 @@ service cloud.firestore {
         && request.resource.data.date is string
         && request.resource.data.authorEmail == request.auth.token.email
         && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() > 0
+        && request.resource.data.authorName.size() <= 40
         && (!('attachments' in request.resource.data)
           || (request.resource.data.attachments is list && request.resource.data.attachments.size() <= 10))
         && request.resource.data.createdAt == request.time;
@@ -38,7 +41,12 @@ service cloud.firestore {
       allow create: if request.auth != null
         && mayManageCategory(request.resource.data.category)
         && validPost();
-      allow update: if false;
+      allow update: if request.auth != null
+        && resource.data.authorUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authorName'])
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() > 0
+        && request.resource.data.authorName.size() <= 40;
       allow delete: if isAdmin() || (
         request.auth != null
         && resource.data.category in ['gallery', 'prayer', 'sermon-share']
