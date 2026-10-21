@@ -28,9 +28,10 @@ service cloud.firestore {
         && request.resource.data.date is string
         && request.resource.data.authorEmail == request.auth.token.email
         && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.authorName is string
-        && request.resource.data.authorName.size() > 0
-        && request.resource.data.authorName.size() <= 40
+        && (!('authorName' in request.resource.data)
+          || (request.resource.data.authorName is string
+            && request.resource.data.authorName.size() > 0
+            && request.resource.data.authorName.size() <= 40))
         && (!('attachments' in request.resource.data)
           || (request.resource.data.attachments is list && request.resource.data.attachments.size() <= 10))
         && request.resource.data.createdAt == request.time;
